@@ -12,6 +12,12 @@ import { createClient } from '@/lib/supabase/client';
 import { Profile } from '@/types';
 import { formatHours } from '@/lib/utils/format';
 import { format, startOfMonth, endOfMonth } from 'date-fns';
+
+// Parse a 'yyyy-MM' string to a local Date without timezone drift
+const parseMonthLocal = (m: string) => {
+  const [y, mo] = m.split('-').map(Number);
+  return new Date(y, mo - 1, 1, 12); // noon avoids DST edge cases
+};
 import StatCard from '@/components/shared/StatCard';
 import { People as PeopleIcon, AccessTime as ClockIcon, TrendingUp as TrendIcon } from '@mui/icons-material';
 
@@ -36,18 +42,26 @@ export default function ReportsClient({ initialReports, initialMonth }: Props) {
   const [month, setMonth] = useState(initialMonth);
   const supabase = createClient();
 
-  // Only re-fetch when month changes from initial
   const fetchReports = useCallback(async (selectedMonth: string) => {
     setLoading(true);
-    const start = format(startOfMonth(new Date(selectedMonth + '-01')), 'yyyy-MM-dd');
-    const end = format(endOfMonth(new Date(selectedMonth + '-01')), 'yyyy-MM-dd');
+
+    const isAll = selectedMonth === 'all';
+    const start = isAll ? null : format(startOfMonth(parseMonthLocal(selectedMonth)), 'yyyy-MM-dd');
+    const end   = isAll ? null : format(endOfMonth(parseMonthLocal(selectedMonth)),   'yyyy-MM-dd');
+
+    let monthAttQuery = supabase
+      .from('attendance')
+      .select('user_id, total_hours, date')
+      .not('total_hours', 'is', null);
+    if (start && end) {
+      monthAttQuery = monthAttQuery.gte('date', start).lte('date', end);
+    }
 
     const [{ data: ojts }, { data: allAtt }, { data: monthAtt }] =
       await Promise.all([
         supabase.from('profiles').select('*').eq('role', 'ojt').eq('is_active', true),
         supabase.from('attendance').select('user_id, total_hours, date').not('total_hours', 'is', null),
-        supabase.from('attendance').select('user_id, total_hours, date')
-          .gte('date', start).lte('date', end).not('total_hours', 'is', null),
+        monthAttQuery,
       ]);
 
     const result: OJTReport[] = (ojts ?? []).map((ojt) => {
@@ -98,9 +112,14 @@ export default function ReportsClient({ initialReports, initialMonth }: Props) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `report-${month}.csv`;
+    a.download = `report-${month === 'all' ? 'all-time' : month}.csv`;
     a.click();
   };
+
+  const monthLabel = (m: string) =>
+    m === 'all' ? 'All Time' : format(parseMonthLocal(m), 'MMM yyyy');
+
+  const periodLabel = month === 'all' ? 'All Time' : format(parseMonthLocal(month), 'MMMM yyyy');
 
   const monthOptions = Array.from({ length: 12 }, (_, i) => {
     const d = new Date();
@@ -116,11 +135,12 @@ export default function ReportsClient({ initialReports, initialMonth }: Props) {
           <Typography color="text.secondary">OJT attendance and progress reports</Typography>
         </Box>
         <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center' }}>
-          <FormControl size="small" sx={{ minWidth: 140 }}>
-            <InputLabel>Month</InputLabel>
-            <Select value={month} label="Month" onChange={(e) => handleMonthChange(e.target.value)}>
+          <FormControl size="small" sx={{ minWidth: 160 }}>
+            <InputLabel>Period</InputLabel>
+            <Select value={month} label="Period" onChange={(e) => handleMonthChange(e.target.value)}>
+              <MenuItem value="all">All Time</MenuItem>
               {monthOptions.map((m) => (
-                <MenuItem key={m} value={m}>{format(new Date(m + '-01'), 'MMM yyyy')}</MenuItem>
+                <MenuItem key={m} value={m}>{monthLabel(m)}</MenuItem>
               ))}
             </Select>
           </FormControl>
@@ -149,7 +169,7 @@ export default function ReportsClient({ initialReports, initialMonth }: Props) {
               <TableHead>
                 <TableRow sx={{ '& th': { fontWeight: 700, bgcolor: '#f8fafc' } }}>
                   <TableCell>OJT</TableCell>
-                  <TableCell>This Month</TableCell>
+                  <TableCell>{periodLabel}</TableCell>
                   <TableCell>Total Hours</TableCell>
                   <TableCell>Days</TableCell>
                   <TableCell>Avg/Day</TableCell>

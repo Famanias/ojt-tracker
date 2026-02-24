@@ -18,6 +18,12 @@ import { Attendance, Profile } from '@/types';
 import { formatDate, formatTime, formatHours } from '@/lib/utils/format';
 import { format, startOfMonth, endOfMonth } from 'date-fns';
 
+// Parse 'yyyy-MM' to a local Date at noon — avoids UTC-midnight timezone drift
+const parseMonthLocal = (m: string) => {
+  const [y, mo] = m.split('-').map(Number);
+  return new Date(y, mo - 1, 1, 12);
+};
+
 interface Props {
   userId?: string; // if undefined, shows all (for admin/supervisor)
   showUser?: boolean;
@@ -28,20 +34,22 @@ export default function AttendanceTable({ userId, showUser = false, initialRecor
   const [records, setRecords] = useState<(Attendance & { profile?: Profile })[]>(initialRecords ?? []);
   const [loading, setLoading] = useState(!initialRecords);
   const [search, setSearch] = useState('');
-  const [month, setMonth] = useState(format(new Date(), 'yyyy-MM'));
+  const [month, setMonth] = useState('all');
   const supabase = createClient();
 
   const fetchRecords = useCallback(async () => {
     setLoading(true);
-    const start = format(startOfMonth(new Date(month + '-01')), 'yyyy-MM-dd');
-    const end = format(endOfMonth(new Date(month + '-01')), 'yyyy-MM-dd');
 
     let query = supabase
       .from('attendance')
       .select('*, profile:profiles(id, full_name, email, avatar_url, department)')
-      .gte('date', start)
-      .lte('date', end)
       .order('date', { ascending: false });
+
+    if (month !== 'all') {
+      const start = format(startOfMonth(parseMonthLocal(month)), 'yyyy-MM-dd');
+      const end   = format(endOfMonth(parseMonthLocal(month)),   'yyyy-MM-dd');
+      query = query.gte('date', start).lte('date', end);
+    }
 
     if (userId) {
       query = query.eq('user_id', userId);
@@ -77,7 +85,7 @@ export default function AttendanceTable({ userId, showUser = false, initialRecor
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `attendance-${month}.csv`;
+    a.download = `attendance-${month === 'all' ? 'all-time' : month}.csv`;
     a.click();
   };
 
@@ -89,8 +97,8 @@ export default function AttendanceTable({ userId, showUser = false, initialRecor
     return <Chip label="Absent" color="error" size="small" icon={<CancelIcon />} />;
   };
 
-  // Generate month options (last 12 months)
-  const monthOptions = Array.from({ length: 12 }, (_, i) => {
+  // Generate month options (last 24 months)
+  const monthOptions = Array.from({ length: 24 }, (_, i) => {
     const d = new Date();
     d.setMonth(d.getMonth() - i);
     return format(d, 'yyyy-MM');
@@ -102,12 +110,13 @@ export default function AttendanceTable({ userId, showUser = false, initialRecor
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2, flexWrap: 'wrap', gap: 2 }}>
           <Typography variant="h6" fontWeight={700}>Attendance Records</Typography>
           <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center', flexWrap: 'wrap' }}>
-            <FormControl size="small" sx={{ minWidth: 140 }}>
-              <InputLabel>Month</InputLabel>
-              <Select value={month} label="Month" onChange={(e) => setMonth(e.target.value)}>
+            <FormControl size="small" sx={{ minWidth: 160 }}>
+              <InputLabel>Period</InputLabel>
+              <Select value={month} label="Period" onChange={(e) => setMonth(e.target.value)}>
+                <MenuItem value="all">All Time</MenuItem>
                 {monthOptions.map((m) => (
                   <MenuItem key={m} value={m}>
-                    {format(new Date(m + '-01'), 'MMM yyyy')}
+                    {format(parseMonthLocal(m), 'MMM yyyy')}
                   </MenuItem>
                 ))}
               </Select>
