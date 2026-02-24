@@ -1,0 +1,113 @@
+// ============================================================
+// OJT Tracker - Type Definitions
+// ============================================================
+
+export type UserRole = 'ojt' | 'supervisor' | 'admin';
+
+export interface Profile {
+  id: string;
+  full_name: string;
+  email: string;
+  role: UserRole;
+  avatar_url?: string;
+  department?: string;
+  required_hours: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SiteSettings {
+  id: string;
+  site_name: string;
+  latitude: number;
+  longitude: number;
+  radius_meters: number;
+  address?: string;
+  updated_by?: string;
+  updated_at: string;
+}
+
+export interface Attendance {
+  id: string;
+  user_id: string;
+  clock_in?: string;
+  clock_out?: string;
+  clock_in_latitude?: number;
+  clock_in_longitude?: number;
+  clock_out_latitude?: number;
+  clock_out_longitude?: number;
+  clock_in_distance_meters?: number;
+  clock_out_distance_meters?: number;
+  total_hours?: number;
+  date: string;
+  notes?: string;
+  created_at: string;
+  updated_at: string;
+  // joined
+  profile?: Profile;
+}
+
+export interface KanbanColumn {
+  id: string;
+  title: string;
+  color: string;
+  position: number;
+  created_by?: string;
+  created_at: string;
+  updated_at: string;
+  // loaded client-side
+  tasks?: KanbanTask[];
+}
+
+export interface KanbanTask {
+  id: string;
+  column_id: string;
+  title: string;
+  description?: string;
+  assignee_id?: string;
+  position: number;
+  due_date?: string;
+  priority: 'low' | 'medium' | 'high';
+  created_at: string;
+  updated_at: string;
+  // joined
+  assignee?: Profile;
+  assigned_ojts?: Profile[];
+  attachments?: TaskAttachment[];
+}
+
+export interface TaskAssignee {
+  id: string;
+  task_id: string;
+  user_id: string;
+  assigned_at: string;
+  profile?: Profile;
+}
+
+export interface TaskAttachment {
+  id: string;
+  task_id: string;
+  file_name: string;
+  file_url: string;
+  file_type: 'image' | 'video' | 'document';
+  file_size?: number;
+  uploaded_by?: string;
+  uploaded_at: string;
+}
+
+export interface AttendanceSummary {
+  total_days: number;
+  total_hours: number;
+  required_hours: number;
+  remaining_hours: number;
+  completion_percentage: number;
+}
+
+export interface LocationState {
+  latitude: number | null;
+  longitude: number | null;
+  accuracy: number | null;
+  error: string | null;
+  loading: boolean;
+}

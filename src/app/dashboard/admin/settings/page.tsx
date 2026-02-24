@@ -1,0 +1,282 @@
+'use client';
+
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+  Box, Typography, Card, CardContent, TextField, Button,
+  Alert, Grid, InputAdornment, CircularProgress, Divider, Chip,
+} from '@mui/material';
+import {
+  LocationOn as LocationIcon,
+  Save as SaveIcon,
+  Radar as RadiusIcon,
+  Map as MapIcon,
+} from '@mui/icons-material';
+import { createClient } from '@/lib/supabase/client';
+import { SiteSettings } from '@/types';
+import { useAuth } from '@/lib/context/AuthContext';
+
+export default function SiteSettingsPage() {
+  const [settings, setSettings] = useState<SiteSettings | null>(null);
+  const [form, setForm] = useState({
+    site_name: '',
+    latitude: '',
+    longitude: '',
+    radius_meters: '',
+    address: '',
+  });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [success, setSuccess] = useState('');
+  const [error, setError] = useState('');
+  const [gettingLocation, setGettingLocation] = useState(false);
+  const supabase = createClient();
+  const { profile } = useAuth();
+
+  const fetchSettings = useCallback(async () => {
+    const { data } = await supabase.from('site_settings').select('*').limit(1).single();
+    if (data) {
+      setSettings(data);
+      setForm({
+        site_name: data.site_name,
+        latitude: String(data.latitude),
+        longitude: String(data.longitude),
+        radius_meters: String(data.radius_meters),
+        address: data.address ?? '',
+      });
+    }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { fetchSettings(); }, [fetchSettings]);
+
+  const useCurrentLocation = () => {
+    setGettingLocation(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setForm((f) => ({
+          ...f,
+          latitude: pos.coords.latitude.toFixed(7),
+          longitude: pos.coords.longitude.toFixed(7),
+        }));
+        setGettingLocation(false);
+      },
+      (err) => {
+        setError(`Could not get location: ${err.message}`);
+        setGettingLocation(false);
+      },
+      { enableHighAccuracy: true }
+    );
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    setError('');
+    setSuccess('');
+
+    const lat = parseFloat(form.latitude);
+    const lng = parseFloat(form.longitude);
+    const radius = parseInt(form.radius_meters);
+
+    if (isNaN(lat) || isNaN(lng)) {
+      setError('Please enter valid latitude and longitude values.');
+      setSaving(false);
+      return;
+    }
+    if (isNaN(radius) || radius < 50) {
+      setError('Radius must be at least 50 meters.');
+      setSaving(false);
+      return;
+    }
+
+    if (settings) {
+      const { error: updateError } = await supabase
+        .from('site_settings')
+        .update({
+          site_name: form.site_name,
+          latitude: lat,
+          longitude: lng,
+          radius_meters: radius,
+          address: form.address || null,
+          updated_by: profile?.id,
+        })
+        .eq('id', settings.id);
+
+      if (updateError) {
+        setError(updateError.message);
+      } else {
+        setSuccess('Site settings saved successfully!');
+        fetchSettings();
+      }
+    }
+
+    setSaving(false);
+  };
+
+  const mapsUrl = form.latitude && form.longitude
+    ? `https://www.google.com/maps?q=${form.latitude},${form.longitude}&z=17`
+    : null;
+
+  return (
+    <Box sx={{ p: 3, maxWidth: 800 }}>
+      <Box sx={{ mb: 3 }}>
+        <Typography variant="h4" fontWeight={800}>Site Settings</Typography>
+        <Typography color="text.secondary">
+          Configure the office location and attendance verification radius.
+        </Typography>
+      </Box>
+
+      {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+      {success && <Alert severity="success" sx={{ mb: 2 }}>{success}</Alert>}
+
+      {/* Location Card */}
+      <Card sx={{ borderRadius: 3, mb: 3 }}>
+        <CardContent sx={{ p: 3 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 3 }}>
+            <Box sx={{ width: 40, height: 40, borderRadius: 2, bgcolor: '#6366f120', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6366f1' }}>
+              <LocationIcon />
+            </Box>
+            <Box>
+              <Typography variant="h6" fontWeight={700}>Office Location</Typography>
+              <Typography variant="body2" color="text.secondary">
+                Set the exact GPS coordinates of the office/training site
+              </Typography>
+            </Box>
+          </Box>
+
+          <Grid container spacing={2}>
+            <Grid size={12}>
+              <TextField
+                fullWidth
+                label="Site Name"
+                value={form.site_name}
+                onChange={(e) => setForm({ ...form, site_name: e.target.value })}
+              />
+            </Grid>
+            <Grid size={12}>
+              <TextField
+                fullWidth
+                label="Office Address (optional)"
+                value={form.address}
+                onChange={(e) => setForm({ ...form, address: e.target.value })}
+                multiline
+                rows={2}
+              />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <TextField
+                fullWidth
+                label="Latitude"
+                value={form.latitude}
+                onChange={(e) => setForm({ ...form, latitude: e.target.value })}
+                placeholder="e.g. 14.5995124"
+                InputProps={{
+                  startAdornment: <InputAdornment position="start">N</InputAdornment>,
+                }}
+              />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <TextField
+                fullWidth
+                label="Longitude"
+                value={form.longitude}
+                onChange={(e) => setForm({ ...form, longitude: e.target.value })}
+                placeholder="e.g. 120.9842195"
+                InputProps={{
+                  startAdornment: <InputAdornment position="start">E</InputAdornment>,
+                }}
+              />
+            </Grid>
+            <Grid size={12}>
+              <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
+                <Button
+                  variant="outlined"
+                  startIcon={gettingLocation ? <CircularProgress size={16} /> : <LocationIcon />}
+                  onClick={useCurrentLocation}
+                  disabled={gettingLocation}
+                >
+                  Use My Current Location
+                </Button>
+                {mapsUrl && (
+                  <Button
+                    variant="outlined"
+                    startIcon={<MapIcon />}
+                    href={mapsUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Preview on Google Maps
+                  </Button>
+                )}
+              </Box>
+            </Grid>
+          </Grid>
+        </CardContent>
+      </Card>
+
+      {/* Radius Card */}
+      <Card sx={{ borderRadius: 3, mb: 3 }}>
+        <CardContent sx={{ p: 3 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 3 }}>
+            <Box sx={{ width: 40, height: 40, borderRadius: 2, bgcolor: '#f59e0b20', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f59e0b' }}>
+              <RadiusIcon />
+            </Box>
+            <Box>
+              <Typography variant="h6" fontWeight={700}>Verification Radius</Typography>
+              <Typography variant="body2" color="text.secondary">
+                OJTs must be within this distance from the office to clock in/out
+              </Typography>
+            </Box>
+          </Box>
+
+          <Grid container spacing={2} alignItems="center">
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <TextField
+                fullWidth
+                label="Allowed Radius"
+                type="number"
+                value={form.radius_meters}
+                onChange={(e) => setForm({ ...form, radius_meters: e.target.value })}
+                InputProps={{
+                  endAdornment: <InputAdornment position="end">meters</InputAdornment>,
+                  inputProps: { min: 50, max: 5000 },
+                }}
+              />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                {[50, 100, 150, 200, 500].map((r) => (
+                  <Chip
+                    key={r}
+                    label={`${r}m`}
+                    clickable
+                    variant={form.radius_meters === String(r) ? 'filled' : 'outlined'}
+                    color={form.radius_meters === String(r) ? 'primary' : 'default'}
+                    onClick={() => setForm({ ...form, radius_meters: String(r) })}
+                  />
+                ))}
+              </Box>
+            </Grid>
+          </Grid>
+
+          <Alert severity="info" sx={{ mt: 2, borderRadius: 2 }}>
+            <Typography variant="body2">
+              <strong>Note:</strong> Supervisors and System Admins are excluded from location restrictions.
+              Only OJTs need to be within the radius to clock in/out.
+            </Typography>
+          </Alert>
+        </CardContent>
+      </Card>
+
+      <Button
+        variant="contained"
+        size="large"
+        startIcon={saving ? <CircularProgress size={20} color="inherit" /> : <SaveIcon />}
+        onClick={handleSave}
+        disabled={saving || loading}
+        sx={{ px: 4 }}
+      >
+        {saving ? 'Saving...' : 'Save Settings'}
+      </Button>
+    </Box>
+  );
+}
