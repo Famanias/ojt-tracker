@@ -4,8 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box, Card, CardContent, Typography, Table, TableBody, TableCell,
   TableContainer, TableHead, TableRow, Chip, Avatar, TextField,
-  InputAdornment, IconButton, Tooltip, Select, MenuItem, FormControl,
-  InputLabel, Skeleton,
+  InputAdornment, IconButton, Tooltip, Skeleton,
 } from '@mui/material';
 import {
   Search as SearchIcon,
@@ -16,13 +15,7 @@ import {
 import { createClient } from '@/lib/supabase/client';
 import { Attendance, Profile } from '@/types';
 import { formatDate, formatTime, formatHours } from '@/lib/utils/format';
-import { format, startOfMonth, endOfMonth } from 'date-fns';
-
-// Parse 'yyyy-MM' to a local Date at noon — avoids UTC-midnight timezone drift
-const parseMonthLocal = (m: string) => {
-  const [y, mo] = m.split('-').map(Number);
-  return new Date(y, mo - 1, 1, 12);
-};
+import DateRangePickerButton from '@/components/shared/DateRangePickerButton';
 
 interface Props {
   userId?: string; // if undefined, shows all (for admin/supervisor)
@@ -34,10 +27,12 @@ export default function AttendanceTable({ userId, showUser = false, initialRecor
   const [records, setRecords] = useState<(Attendance & { profile?: Profile })[]>(initialRecords ?? []);
   const [loading, setLoading] = useState(!initialRecords);
   const [search, setSearch] = useState('');
-  const [month, setMonth] = useState('all');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [isAllTime, setIsAllTime] = useState(true);
   const supabase = createClient();
 
-  const fetchRecords = useCallback(async () => {
+  const fetchRecords = useCallback(async (from: string, to: string, allTime: boolean) => {
     setLoading(true);
 
     let query = supabase
@@ -45,10 +40,8 @@ export default function AttendanceTable({ userId, showUser = false, initialRecor
       .select('*, profile:profiles(id, full_name, email, avatar_url, department)')
       .order('date', { ascending: false });
 
-    if (month !== 'all') {
-      const start = format(startOfMonth(parseMonthLocal(month)), 'yyyy-MM-dd');
-      const end   = format(endOfMonth(parseMonthLocal(month)),   'yyyy-MM-dd');
-      query = query.gte('date', start).lte('date', end);
+    if (!allTime && from && to) {
+      query = query.gte('date', from).lte('date', to);
     }
 
     if (userId) {
@@ -58,11 +51,12 @@ export default function AttendanceTable({ userId, showUser = false, initialRecor
     const { data } = await query;
     setRecords(data ?? []);
     setLoading(false);
-  }, [userId, month]);
+  }, [userId, supabase]);
 
   useEffect(() => {
-    fetchRecords();
-  }, [fetchRecords]);
+    fetchRecords('', '', true);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId]);
 
   const filtered = records.filter((r) => {
     if (!search) return true;
@@ -85,7 +79,7 @@ export default function AttendanceTable({ userId, showUser = false, initialRecor
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `attendance-${month === 'all' ? 'all-time' : month}.csv`;
+    a.download = `attendance-${isAllTime ? 'all-time' : `${dateFrom}-to-${dateTo}`}.csv`;
     a.click();
   };
 
@@ -97,12 +91,12 @@ export default function AttendanceTable({ userId, showUser = false, initialRecor
     return <Chip label="Absent" color="error" size="small" icon={<CancelIcon />} />;
   };
 
-  // Generate month options (last 24 months)
-  const monthOptions = Array.from({ length: 24 }, (_, i) => {
-    const d = new Date();
-    d.setMonth(d.getMonth() - i);
-    return format(d, 'yyyy-MM');
-  });
+  const handleRangeChange = ({ dateFrom: from, dateTo: to, isAllTime: all }: { dateFrom: string; dateTo: string; isAllTime: boolean }) => {
+    setDateFrom(from);
+    setDateTo(to);
+    setIsAllTime(all);
+    fetchRecords(from, to, all);
+  };
 
   return (
     <Card sx={{ borderRadius: 3 }}>
@@ -110,17 +104,12 @@ export default function AttendanceTable({ userId, showUser = false, initialRecor
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2, flexWrap: 'wrap', gap: 2 }}>
           <Typography variant="h6" fontWeight={700}>Attendance Records</Typography>
           <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center', flexWrap: 'wrap' }}>
-            <FormControl size="small" sx={{ minWidth: 160 }}>
-              <InputLabel>Period</InputLabel>
-              <Select value={month} label="Period" onChange={(e) => setMonth(e.target.value)}>
-                <MenuItem value="all">All Time</MenuItem>
-                {monthOptions.map((m) => (
-                  <MenuItem key={m} value={m}>
-                    {format(parseMonthLocal(m), 'MMM yyyy')}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
+            <DateRangePickerButton
+              dateFrom={dateFrom}
+              dateTo={dateTo}
+              isAllTime={isAllTime}
+              onChange={handleRangeChange}
+            />
             {showUser && (
               <TextField
                 size="small"

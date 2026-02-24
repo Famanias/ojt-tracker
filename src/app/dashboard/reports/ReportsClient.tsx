@@ -1,9 +1,8 @@
 'use client';
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
-  Box, Typography, Grid, Card, CardContent, Select, MenuItem,
-  FormControl, InputLabel, Table, TableBody, TableCell,
+  Box, Typography, Grid, Card, CardContent, Table, TableBody, TableCell,
   TableContainer, TableHead, TableRow, Avatar, LinearProgress,
   Chip, Button,
 } from '@mui/material';
@@ -11,15 +10,10 @@ import { Download as DownloadIcon } from '@mui/icons-material';
 import { createClient } from '@/lib/supabase/client';
 import { Profile } from '@/types';
 import { formatHours } from '@/lib/utils/format';
-import { format, startOfMonth, endOfMonth } from 'date-fns';
-
-// Parse a 'yyyy-MM' string to a local Date without timezone drift
-const parseMonthLocal = (m: string) => {
-  const [y, mo] = m.split('-').map(Number);
-  return new Date(y, mo - 1, 1, 12); // noon avoids DST edge cases
-};
+import { format } from 'date-fns';
 import StatCard from '@/components/shared/StatCard';
 import { People as PeopleIcon, AccessTime as ClockIcon, TrendingUp as TrendIcon } from '@mui/icons-material';
+import DateRangePickerButton from '@/components/shared/DateRangePickerButton';
 
 interface OJTReport {
   profile: Profile;
@@ -33,21 +27,21 @@ interface OJTReport {
 
 interface Props {
   initialReports: OJTReport[];
-  initialMonth: string;
 }
 
-export default function ReportsClient({ initialReports, initialMonth }: Props) {
+export default function ReportsClient({ initialReports }: Props) {
   const [reports, setReports] = useState<OJTReport[]>(initialReports);
   const [loading, setLoading] = useState(false);
-  const [month, setMonth] = useState(initialMonth);
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [isAllTime, setIsAllTime] = useState(true);
   const supabase = createClient();
 
-  const fetchReports = useCallback(async (selectedMonth: string) => {
+  const fetchReports = useCallback(async (from: string, to: string, allTime: boolean) => {
     setLoading(true);
 
-    const isAll = selectedMonth === 'all';
-    const start = isAll ? null : format(startOfMonth(parseMonthLocal(selectedMonth)), 'yyyy-MM-dd');
-    const end   = isAll ? null : format(endOfMonth(parseMonthLocal(selectedMonth)),   'yyyy-MM-dd');
+    const start = allTime ? null : (from || null);
+    const end   = allTime ? null : (to || null);
 
     let monthAttQuery = supabase
       .from('attendance')
@@ -86,16 +80,24 @@ export default function ReportsClient({ initialReports, initialMonth }: Props) {
     setLoading(false);
   }, [supabase]);
 
-  const handleMonthChange = (newMonth: string) => {
-    setMonth(newMonth);
-    fetchReports(newMonth);
+  const handleRangeChange = ({ dateFrom: from, dateTo: to, isAllTime: all }: { dateFrom: string; dateTo: string; isAllTime: boolean }) => {
+    setDateFrom(from);
+    setDateTo(to);
+    setIsAllTime(all);
+    fetchReports(from, to, all);
   };
 
   const totalHours = reports.reduce((s, r) => s + r.total_hours, 0);
   const completed = reports.filter((r) => r.completion_pct >= 100).length;
 
+  const periodLabel = isAllTime
+    ? 'All Time'
+    : dateFrom && dateTo
+      ? `${format(new Date(dateFrom + 'T12:00'), 'MMM d, yyyy')} – ${format(new Date(dateTo + 'T12:00'), 'MMM d, yyyy')}`
+      : 'Selected Period';
+
   const exportCSV = () => {
-    const headers = ['Name', 'Email', 'Dept', 'Total Hours', 'Total Days', 'Month Hours', 'Month Days', 'Avg Daily Hours', '% Complete'];
+    const headers = ['Name', 'Email', 'Dept', 'Total Hours', 'Total Days', 'Period Hours', 'Period Days', 'Avg Daily Hours', '% Complete'];
     const rows = reports.map((r) => [
       r.profile.full_name,
       r.profile.email,
@@ -112,20 +114,9 @@ export default function ReportsClient({ initialReports, initialMonth }: Props) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `report-${month === 'all' ? 'all-time' : month}.csv`;
+    a.download = `report-${isAllTime ? 'all-time' : `${dateFrom}-to-${dateTo}`}.csv`;
     a.click();
   };
-
-  const monthLabel = (m: string) =>
-    m === 'all' ? 'All Time' : format(parseMonthLocal(m), 'MMM yyyy');
-
-  const periodLabel = month === 'all' ? 'All Time' : format(parseMonthLocal(month), 'MMMM yyyy');
-
-  const monthOptions = Array.from({ length: 12 }, (_, i) => {
-    const d = new Date();
-    d.setMonth(d.getMonth() - i);
-    return format(d, 'yyyy-MM');
-  });
 
   return (
     <Box sx={{ p: 3 }}>
@@ -134,16 +125,13 @@ export default function ReportsClient({ initialReports, initialMonth }: Props) {
           <Typography variant="h4" fontWeight={800}>Reports</Typography>
           <Typography color="text.secondary">OJT attendance and progress reports</Typography>
         </Box>
-        <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center' }}>
-          <FormControl size="small" sx={{ minWidth: 160 }}>
-            <InputLabel>Period</InputLabel>
-            <Select value={month} label="Period" onChange={(e) => handleMonthChange(e.target.value)}>
-              <MenuItem value="all">All Time</MenuItem>
-              {monthOptions.map((m) => (
-                <MenuItem key={m} value={m}>{monthLabel(m)}</MenuItem>
-              ))}
-            </Select>
-          </FormControl>
+        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
+          <DateRangePickerButton
+            dateFrom={dateFrom}
+            dateTo={dateTo}
+            isAllTime={isAllTime}
+            onChange={handleRangeChange}
+          />
           <Button variant="outlined" startIcon={<DownloadIcon />} onClick={exportCSV}>
             Export CSV
           </Button>
@@ -169,7 +157,7 @@ export default function ReportsClient({ initialReports, initialMonth }: Props) {
               <TableHead>
                 <TableRow sx={{ '& th': { fontWeight: 700, bgcolor: '#f8fafc' } }}>
                   <TableCell>OJT</TableCell>
-                  <TableCell>{periodLabel}</TableCell>
+                  <TableCell>{periodLabel} Hours</TableCell>
                   <TableCell>Total Hours</TableCell>
                   <TableCell>Days</TableCell>
                   <TableCell>Avg/Day</TableCell>
