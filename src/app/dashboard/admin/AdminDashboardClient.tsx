@@ -73,40 +73,6 @@ export default function AdminDashboardClient({ stats, initialAttendance }: Props
         </Grid>
       </Grid>
 
-      {/* Quick Actions */}
-      <Grid container spacing={2} sx={{ mb: 3 }}>
-        {[
-          { label: 'Manage Users', desc: 'Add, edit, or deactivate OJTs and supervisors', icon: <PeopleIcon />, path: '/dashboard/admin/users', color: '#6366f1' },
-          { label: 'Site Settings', desc: 'Configure location, radius, and site details', icon: <SettingsIcon />, path: '/dashboard/admin/settings', color: '#f59e0b' },
-          { label: 'Kanban Board', desc: 'Manage tasks and track OJT assignments', icon: <KanbanIcon />, path: '/dashboard/kanban', color: '#22c55e' },
-          { label: 'Reports', desc: 'View detailed attendance and hours reports', icon: <ReportIcon />, path: '/dashboard/reports', color: '#ec4899' },
-        ].map((action) => (
-          <Grid size={{ xs: 12, sm: 6, lg: 3 }} key={action.label}>
-            <Card
-              sx={{
-                borderRadius: 3, cursor: 'pointer', transition: 'all 0.2s',
-                border: `2px solid transparent`,
-                '&:hover': { transform: 'translateY(-3px)', border: `2px solid ${action.color}40`, boxShadow: `0 8px 24px ${action.color}20` },
-              }}
-              onClick={() => router.push(action.path)}
-            >
-              <CardContent sx={{ p: 3 }}>
-                <Box
-                  sx={{
-                    width: 44, height: 44, borderRadius: 2, bgcolor: `${action.color}20`,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', color: action.color, mb: 2,
-                  }}
-                >
-                  {action.icon}
-                </Box>
-                <Typography variant="subtitle1" fontWeight={700}>{action.label}</Typography>
-                <Typography variant="body2" color="text.secondary">{action.desc}</Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-        ))}
-      </Grid>
-
       {/* All Attendance */}
       <AttendanceTable showUser={true} initialRecords={initialAttendance} />
     </Box>
