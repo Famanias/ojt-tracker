@@ -38,6 +38,7 @@ create table site_settings (
   longitude numeric(10,7) not null,
   radius_meters integer not null default 150,
   address text,
+  archive_retention_days integer not null default 7,
   updated_by uuid references profiles(id),
   updated_at timestamptz not null default now()
 );
@@ -98,6 +99,8 @@ create table kanban_tasks (
   position integer not null default 0,
   due_date date,
   priority text default 'medium',                -- low, medium, high
+  archived_at timestamptz,
+  archived_by uuid references profiles(id),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );

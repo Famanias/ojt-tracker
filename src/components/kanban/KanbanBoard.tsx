@@ -10,10 +10,13 @@ import { arrayMove, SortableContext, horizontalListSortingStrategy } from '@dnd-
 import {
   Box, Button, Typography, CircularProgress, Alert, Badge,
   Autocomplete, TextField, Chip, Tooltip, Avatar,
+  Dialog, DialogTitle, DialogContent, DialogActions,
 } from '@mui/material';
 import {
   Add as AddIcon, HourglassEmpty as PendingIcon,
   FilterList as FilterIcon,
+  Archive as ArchiveIcon,
+  Warning as WarningIcon,
 } from '@mui/icons-material';
 import { createClient } from '@/lib/supabase/client';
 import { KanbanColumn, KanbanTask, Profile } from '@/types';
@@ -22,6 +25,7 @@ import KanbanTaskCard from './KanbanTask';
 import TaskModal from './TaskModal';
 import ColumnDialog from './ColumnDialog';
 import TaskViewDialog from './TaskViewDialog';
+import TaskArchiveDialog from './TaskArchiveDialog';
 
 interface Props {
   initialColumns: KanbanColumn[];
@@ -39,6 +43,8 @@ export default function KanbanBoard({ initialColumns, initialOjts, initialProfil
   const [viewingTask, setViewingTask] = useState<KanbanTask | null>(null);
   const [filterOjtIds, setFilterOjtIds] = useState<string[]>([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
+  const [deleteColConfirm, setDeleteColConfirm] = useState<KanbanColumn | null>(null);
   const [taskModalOpen, setTaskModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<KanbanTask | null>(null);
   const [defaultColumnId, setDefaultColumnId] = useState<string>('');
@@ -106,7 +112,7 @@ export default function KanbanBoard({ initialColumns, initialOjts, initialProfil
     const [{ data: cols, error: colError }, tasksRes, { data: ojts }] =
       await Promise.all([
         supabase.from('kanban_columns').select('*').order('position'),
-        supabase.from('kanban_tasks').select(taskQuery).order('position'),
+        supabase.from('kanban_tasks').select(taskQuery).order('position').is('archived_at', null),
         supabase.from('profiles').select('*').eq('role', 'ojt').eq('is_active', true),
       ]);
 
@@ -115,7 +121,7 @@ export default function KanbanBoard({ initialColumns, initialOjts, initialProfil
     // Fallback if status column doesn't exist yet in DB
     let tasks = tasksRes.data;
     if (tasksRes.error) {
-      const fallback = await supabase.from('kanban_tasks').select(taskQueryFallback).order('position');
+      const fallback = await supabase.from('kanban_tasks').select(taskQueryFallback).order('position').is('archived_at', null);
       tasks = fallback.data;
       if (fallback.error) setError(fallback.error.message);
     }
@@ -244,40 +250,51 @@ export default function KanbanBoard({ initialColumns, initialOjts, initialProfil
     }
 
     // Task reorder / move
-    setColumns((prev) => {
-      const activeCol = prev.find((c) => c.tasks?.some((t) => t.id === activeId));
-      const overCol =
-        prev.find((c) => c.id === overId) ||
-        prev.find((c) => c.tasks?.some((t) => t.id === overId));
-
-      if (!activeCol || !overCol) return prev;
-
-      if (activeCol.id === overCol.id) {
-        const oldIdx = activeCol.tasks?.findIndex((t) => t.id === activeId) ?? 0;
-        const newIdx = activeCol.tasks?.findIndex((t) => t.id === overId) ?? 0;
-        const newTasks = arrayMove(activeCol.tasks ?? [], oldIdx, newIdx);
-        return prev.map((c) => (c.id === activeCol.id ? { ...c, tasks: newTasks } : c));
-      }
-
-      return prev;
-    });
-
-    // Persist task position & column
-    const destCol = columns.find((c) => c.id === overId) ||
+    const activeCol = columns.find((c) => c.tasks?.some((t) => t.id === activeId));
+    const overCol =
+      columns.find((c) => c.id === overId) ||
       columns.find((c) => c.tasks?.some((t) => t.id === overId));
-    if (destCol) {
-      const taskIndex = destCol.tasks?.findIndex((t) => t.id === activeId) ?? 0;
-      await supabase
-        .from('kanban_tasks')
-        .update({ column_id: destCol.id, position: taskIndex })
-        .eq('id', activeId);
 
-      // Re-index positions
+    if (!activeCol || !overCol) return;
+
+    if (activeCol.id === overCol.id) {
+      // Same-column reorder: compute new order first, then update both UI and DB from it
+      const oldIdx = activeCol.tasks?.findIndex((t) => t.id === activeId) ?? 0;
+      const newIdx = activeCol.tasks?.findIndex((t) => t.id === overId) ?? 0;
+      if (oldIdx === newIdx) return;
+
+      const newTasks = arrayMove(activeCol.tasks ?? [], oldIdx, newIdx);
+
+      // Update UI
+      setColumns((prev) =>
+        prev.map((c) => (c.id === activeCol.id ? { ...c, tasks: newTasks } : c))
+      );
+
+      // Persist from the computed newTasks (not the stale columns closure)
       await Promise.all(
-        (destCol.tasks ?? []).map((t, i) =>
+        newTasks.map((t, i) =>
           supabase.from('kanban_tasks').update({ position: i }).eq('id', t.id)
         )
       );
+    } else {
+      // Cross-column move — visual state already handled by onDragOver
+      // Find the updated destination column (it has the task appended by onDragOver)
+      const updatedDestCol = columns.find((c) => c.id === overCol.id);
+      if (!updatedDestCol) return;
+
+      // Persist column change + re-index both columns
+      await Promise.all([
+        supabase.from('kanban_tasks').update({ column_id: overCol.id }).eq('id', activeId),
+        ...(activeCol.tasks ?? [])
+          .filter((t) => t.id !== activeId)
+          .map((t, i) => supabase.from('kanban_tasks').update({ position: i }).eq('id', t.id)),
+        ...(updatedDestCol.tasks ?? []).map((t, i) =>
+          supabase
+            .from('kanban_tasks')
+            .update({ position: i, column_id: overCol.id })
+            .eq('id', t.id)
+        ),
+      ]);
     }
   };
 
@@ -298,8 +315,11 @@ export default function KanbanBoard({ initialColumns, initialOjts, initialProfil
     setViewingTask(task);
   };
 
-  const deleteTask = async (taskId: string) => {
-    await supabase.from('kanban_tasks').delete().eq('id', taskId);
+  const archiveTask = async (taskId: string) => {
+    await supabase
+      .from('kanban_tasks')
+      .update({ archived_at: new Date().toISOString(), archived_by: profile.id })
+      .eq('id', taskId);
     fetchBoard(true);
   };
 
@@ -329,9 +349,24 @@ export default function KanbanBoard({ initialColumns, initialOjts, initialProfil
     setColumnDialogOpen(true);
   };
 
-  const deleteColumn = async (colId: string) => {
+  const deleteColumn = async (col: KanbanColumn) => {
+    setDeleteColConfirm(col);
+  };
+
+  const confirmDeleteColumn = async () => {
+    if (!deleteColConfirm) return;
+    const colId = deleteColConfirm.id;
+    // Archive all tasks inside this column first
+    const tasksInCol = columns.find((c) => c.id === colId)?.tasks ?? [];
+    if (tasksInCol.length > 0) {
+      await supabase
+        .from('kanban_tasks')
+        .update({ archived_at: new Date().toISOString(), archived_by: profile.id })
+        .in('id', tasksInCol.map((t) => t.id));
+    }
     await supabase.from('kanban_columns').delete().eq('id', colId);
-    fetchBoard();
+    setDeleteColConfirm(null);
+    fetchBoard(true);
   };
 
   if (loading && columns.length === 0) {
@@ -380,6 +415,16 @@ export default function KanbanBoard({ initialColumns, initialOjts, initialProfil
               </Badge>
             ) : null;
           })()}
+          {profile.role === 'admin' && (
+            <Button
+              variant="outlined"
+              startIcon={<ArchiveIcon />}
+              onClick={() => setArchiveDialogOpen(true)}
+              color="inherit"
+            >
+              Archives
+            </Button>
+          )}
           {canManage && (
             <Button variant="outlined" startIcon={<AddIcon />} onClick={openCreateColumn}>
               Add Column
@@ -461,9 +506,9 @@ export default function KanbanBoard({ initialColumns, initialOjts, initialProfil
                   isOjt={isOjt}
                   onAddTask={() => openCreateTask(col.id)}
                   onEditColumn={() => openEditColumn(col)}
-                  onDeleteColumn={() => deleteColumn(col.id)}
+                  onDeleteColumn={() => deleteColumn(col)}
                   onEditTask={openEditTask}
-                  onDeleteTask={deleteTask}
+                  onArchiveTask={archiveTask}
                   onViewTask={openViewTask}
                   onVolunteer={volunteerForTask}
                 />
@@ -483,7 +528,7 @@ export default function KanbanBoard({ initialColumns, initialOjts, initialProfil
                 onEditColumn={() => {}}
                 onDeleteColumn={() => {}}
                 onEditTask={() => {}}
-                onDeleteTask={() => {}}
+                  onArchiveTask={() => {}}
                 onViewTask={() => {}}
               />
             )}
@@ -496,11 +541,58 @@ export default function KanbanBoard({ initialColumns, initialOjts, initialProfil
         open={!!viewingTask}
         onClose={() => setViewingTask(null)}
         onEdit={() => { if (viewingTask) openEditTask(viewingTask); }}
+        onArchive={archiveTask}
         onRefresh={() => { setViewingTask(null); fetchBoard(true); }}
         task={viewingTask}
         column={viewingTask ? columns.find((c) => c.id === viewingTask.column_id) : undefined}
         currentUser={profile}
       />
+
+      {/* Archive Dialog */}
+      <TaskArchiveDialog
+        open={archiveDialogOpen}
+        onClose={() => setArchiveDialogOpen(false)}
+        onRefresh={() => fetchBoard(true)}
+        columns={columns}
+        currentUser={profile}
+      />
+
+      {/* Delete Column Confirmation */}
+      <Dialog
+        open={!!deleteColConfirm}
+        onClose={() => setDeleteColConfirm(null)}
+        maxWidth="xs"
+        fullWidth
+        PaperProps={{ sx: { borderRadius: 3 } }}
+      >
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <WarningIcon color="warning" />
+          Delete Column
+        </DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" mb={1}>
+            Are you sure you want to delete <strong>{deleteColConfirm?.title}</strong>?
+          </Typography>
+          {(() => {
+            const count = columns.find((c) => c.id === deleteColConfirm?.id)?.tasks?.length ?? 0;
+            return count > 0 ? (
+              <Alert severity="warning" sx={{ mt: 1 }}>
+                {count} task{count !== 1 ? 's' : ''} inside this column will be moved to the archive.
+              </Alert>
+            ) : (
+              <Typography variant="body2" color="text.secondary">
+                This column has no tasks and will be removed immediately.
+              </Typography>
+            );
+          })()}
+        </DialogContent>
+        <DialogActions sx={{ p: 2, gap: 1 }}>
+          <Button onClick={() => setDeleteColConfirm(null)}>Cancel</Button>
+          <Button variant="contained" color="error" onClick={confirmDeleteColumn}>
+            Delete Column
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Task Create/Edit Modal */}
       <TaskModal

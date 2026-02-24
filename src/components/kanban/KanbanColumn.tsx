@@ -30,14 +30,14 @@ interface Props {
   onEditColumn: () => void;
   onDeleteColumn: () => void;
   onEditTask: (task: KanbanTask) => void;
-  onDeleteTask: (taskId: string) => void;
+  onArchiveTask: (taskId: string) => void;
   onViewTask: (task: KanbanTask) => void;
   onVolunteer?: (taskId: string) => void;
 }
 
 export default function KanbanColumnComponent({
   column, canManage, canAddTask = false, isDragging = false, currentUserId, isOjt = false,
-  onAddTask, onEditColumn, onDeleteColumn, onEditTask, onDeleteTask, onViewTask, onVolunteer,
+  onAddTask, onEditColumn, onDeleteColumn, onEditTask, onArchiveTask, onViewTask, onVolunteer,
 }: Props) {
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
 
@@ -194,7 +194,7 @@ export default function KanbanColumnComponent({
                   canVolunteer={canVolunteer}
                   hasPendingInvitation={pendingInvite}
                   onEdit={() => onEditTask(task)}
-                  onDelete={() => onDeleteTask(task.id)}
+                  onArchive={() => onArchiveTask(task.id)}
                   onView={() => onViewTask(task)}
                   onVolunteer={() => onVolunteer?.(task.id)}
                 />

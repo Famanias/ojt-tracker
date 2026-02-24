@@ -10,6 +10,7 @@ import {
   Close as CloseIcon,
   CalendarToday as DateIcon,
   Edit as EditIcon,
+  Archive as ArchiveIcon,
   AttachFile as AttachIcon,
   Image as ImageIcon,
   VideoFile as VideoIcon,
@@ -30,15 +31,17 @@ interface Props {
   open: boolean;
   onClose: () => void;
   onEdit: () => void;
+  onArchive: (taskId: string) => void;
   onRefresh: () => void;
   task: KanbanTask | null;
   column?: KanbanColumn;
   currentUser: Profile;
 }
 
-export default function TaskViewDialog({ open, onClose, onEdit, onRefresh, task, column, currentUser }: Props) {
+export default function TaskViewDialog({ open, onClose, onEdit, onArchive, onRefresh, task, column, currentUser }: Props) {
   const [responding, setResponding] = useState<'accepting' | 'rejecting' | null>(null);
   const [volunteering, setVolunteering] = useState(false);
+  const [archiving, setArchiving] = useState(false);
   const [error, setError] = useState('');
   const supabase = createClient();
 
@@ -93,6 +96,16 @@ export default function TaskViewDialog({ open, onClose, onEdit, onRefresh, task,
       onClose();
     } finally {
       setVolunteering(false);
+    }
+  };
+
+  const handleArchive = async () => {
+    setArchiving(true);
+    try {
+      onArchive(task.id);
+      onClose();
+    } finally {
+      setArchiving(false);
     }
   };
 
@@ -333,9 +346,20 @@ export default function TaskViewDialog({ open, onClose, onEdit, onRefresh, task,
 
         {/* Edit button for creator/admin/supervisor/accepted assignee */}
         {canEdit && !hasPendingInvitation && (
-          <Button variant="outlined" startIcon={<EditIcon />} onClick={() => { onClose(); onEdit(); }}>
-            Edit Task
-          </Button>
+          <>
+            <Button
+              variant="outlined"
+              color="warning"
+              startIcon={archiving ? <CircularProgress size={16} /> : <ArchiveIcon />}
+              onClick={handleArchive}
+              disabled={archiving}
+            >
+              Archive
+            </Button>
+            <Button variant="outlined" startIcon={<EditIcon />} onClick={() => { onClose(); onEdit(); }}>
+              Edit Task
+            </Button>
+          </>
         )}
 
         <Button onClick={onClose} sx={{ ml: 'auto' }}>Close</Button>

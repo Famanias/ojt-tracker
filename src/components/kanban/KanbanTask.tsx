@@ -8,7 +8,7 @@ import {
 import {
   MoreVert as MoreIcon,
   Edit as EditIcon,
-  Delete as DeleteIcon,
+  Archive as ArchiveIcon,
   AttachFile as AttachIcon,
   CalendarToday as DateIcon,
   HourglassEmpty as PendingIcon,
@@ -26,12 +26,12 @@ interface Props {
   hasPendingInvitation?: boolean;
   canVolunteer?: boolean;
   onEdit?: () => void;
-  onDelete?: () => void;
+  onArchive?: () => void;
   onView?: () => void;
   onVolunteer?: () => void;
 }
 
-export default function KanbanTaskCard({ task, canManage = false, isDragging = false, hasPendingInvitation = false, canVolunteer = false, onEdit, onDelete, onView, onVolunteer }: Props) {
+export default function KanbanTaskCard({ task, canManage = false, isDragging = false, hasPendingInvitation = false, canVolunteer = false, onEdit, onArchive, onView, onVolunteer }: Props) {
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
 
   const { attributes, listeners, setNodeRef, transform, transition, isDragging: isSortable } =
@@ -211,11 +211,11 @@ export default function KanbanTaskCard({ task, canManage = false, isDragging = f
           Edit Task
         </MenuItem>
         <MenuItem
-          onClick={() => { setMenuAnchor(null); onDelete?.(); }}
-          sx={{ color: 'error.main' }}
+          onClick={() => { setMenuAnchor(null); onArchive?.(); }}
+          sx={{ color: 'warning.dark' }}
         >
-          <ListItemIcon><DeleteIcon fontSize="small" color="error" /></ListItemIcon>
-          Delete Task
+          <ListItemIcon><ArchiveIcon fontSize="small" color="warning" /></ListItemIcon>
+          Archive Task
         </MenuItem>
       </Menu>
     </Box>

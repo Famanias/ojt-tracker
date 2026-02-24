@@ -69,10 +69,13 @@ export interface KanbanTask {
   position: number;
   due_date?: string;
   priority: 'low' | 'medium' | 'high';
+  archived_at?: string | null;
+  archived_by?: string | null;
   created_at: string;
   updated_at: string;
   // joined
   assignee?: Profile;
+  archived_by_profile?: Profile;
   assigned_ojts?: Profile[]; // only accepted assignees
   task_assignees_detail?: TaskAssigneeDetail[]; // all assignees with status
   attachments?: TaskAttachment[];
