@@ -41,6 +41,6 @@ yarn-error.log*
 next-env.d.ts
 
 # supabase scripts
-supabase/check.mjs
-supabase/create_users.mjs
-supabase/fix_handle_new_user.sql
+/supabase/*
+/supabase/
+/supabase
