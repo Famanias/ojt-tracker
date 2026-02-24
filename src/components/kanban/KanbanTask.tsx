@@ -11,6 +11,7 @@ import {
   Delete as DeleteIcon,
   AttachFile as AttachIcon,
   CalendarToday as DateIcon,
+  HourglassEmpty as PendingIcon,
 } from '@mui/icons-material';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -21,11 +22,13 @@ interface Props {
   task: KanbanTask;
   canManage?: boolean;
   isDragging?: boolean;
+  hasPendingInvitation?: boolean;
   onEdit?: () => void;
   onDelete?: () => void;
+  onView?: () => void;
 }
 
-export default function KanbanTaskCard({ task, canManage = false, isDragging = false, onEdit, onDelete }: Props) {
+export default function KanbanTaskCard({ task, canManage = false, isDragging = false, hasPendingInvitation = false, onEdit, onDelete, onView }: Props) {
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
 
   const { attributes, listeners, setNodeRef, transform, transition, isDragging: isSortable } =
@@ -46,9 +49,10 @@ export default function KanbanTaskCard({ task, canManage = false, isDragging = f
       <Card
         {...attributes}
         {...listeners}
+        onClick={(e) => { e.stopPropagation(); onView?.(); }}
         sx={{
           borderRadius: 2,
-          cursor: isDragging ? 'grabbing' : 'grab',
+          cursor: isDragging ? 'grabbing' : 'pointer',
           boxShadow: isDragging
             ? '0 16px 32px rgba(0,0,0,0.2)'
             : '0 1px 3px rgba(0,0,0,0.08)',
@@ -64,18 +68,30 @@ export default function KanbanTaskCard({ task, canManage = false, isDragging = f
         <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
           {/* Priority + Menu */}
           <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', mb: 1 }}>
-            <Chip
-              label={task.priority}
-              size="small"
-              sx={{
-                bgcolor: `${pColor}20`,
-                color: pColor,
-                fontWeight: 600,
-                fontSize: 10,
-                height: 20,
-                textTransform: 'capitalize',
-              }}
-            />
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap' }}>
+              <Chip
+                label={task.priority}
+                size="small"
+                sx={{
+                  bgcolor: `${pColor}20`,
+                  color: pColor,
+                  fontWeight: 600,
+                  fontSize: 10,
+                  height: 20,
+                  textTransform: 'capitalize',
+                }}
+              />
+              {hasPendingInvitation && (
+                <Tooltip title="You have been invited to this task">
+                  <Chip
+                    icon={<PendingIcon sx={{ fontSize: 11 }} />}
+                    label="Invited"
+                    size="small"
+                    sx={{ bgcolor: '#fef3c7', color: '#b45309', fontWeight: 600, fontSize: 10, height: 20 }}
+                  />
+                </Tooltip>
+              )}
+            </Box>
             {canManage && (
               <IconButton
                 size="small"

@@ -90,7 +90,7 @@ export default function TaskModal({
         setExistingAttachments([]);
       }
       setError('');
-      
+
     }
   }, [open, editingTask, defaultColumnId]);
 
@@ -114,7 +114,9 @@ export default function TaskModal({
 
   const handleSave = async () => {
     if (!title.trim()) { setError('Task title is required.'); return; }
-    if (assignedOjtIds.length === 0) { setError('Please assign at least one OJT.'); return; }
+    const isOjt = currentUser?.role === 'ojt';
+    // Admins/supervisors must assign at least one OJT; OJTs are auto-assigned to themselves
+    if (!isOjt && assignedOjtIds.length === 0) { setError('Please assign at least one OJT.'); return; }
     setSaving(true);
     setError('');
 
@@ -155,9 +157,29 @@ export default function TaskModal({
     }
 
     // Insert task assignees
-    await supabase.from('task_assignees').insert(
-      assignedOjtIds.map((uid) => ({ task_id: taskId!, user_id: uid }))
-    );
+    // OJT creator is always accepted; others they invite are pending
+    const isOjtCreator = currentUser?.role === 'ojt';
+    const assigneesToInsert: { task_id: string; user_id: string; status: string }[] = [];
+
+    if (isOjtCreator && currentUser) {
+      // Auto-add self as accepted
+      if (!assignedOjtIds.includes(currentUser.id)) {
+        assigneesToInsert.push({ task_id: taskId!, user_id: currentUser.id, status: 'accepted' });
+      }
+    }
+
+    assignedOjtIds.forEach((uid) => {
+      assigneesToInsert.push({
+        task_id: taskId!,
+        user_id: uid,
+        // OJT creator inviting others → pending; admin/supervisor assigning → accepted
+        status: isOjtCreator && uid !== currentUser?.id ? 'pending' : 'accepted',
+      });
+    });
+
+    if (assigneesToInsert.length > 0) {
+      await supabase.from('task_assignees').insert(assigneesToInsert);
+    }
 
     // Wait for any still-uploading files to finish
     const stillUploading = uploadingFiles.filter((u) => u.status === 'uploading');
@@ -315,15 +337,17 @@ export default function TaskModal({
             />
           </Grid>
 
-          {/* Assigned OJTs (required) */}
+          {/* Assigned OJTs */}
           <Grid size={{ xs: 12, sm: 6 }}>
-            <FormControl fullWidth required>
-              <InputLabel>Assigned OJTs *</InputLabel>
+            <FormControl fullWidth required={currentUser?.role !== 'ojt'}>
+              <InputLabel>
+                {currentUser?.role === 'ojt' ? 'Invite Other OJTs (optional)' : 'Assigned OJTs *'}
+              </InputLabel>
               <Select
                 multiple
                 value={assignedOjtIds}
                 onChange={(e) => setAssignedOjtIds(e.target.value as string[])}
-                input={<OutlinedInput label="Assigned OJTs *" />}
+                input={<OutlinedInput label={currentUser?.role === 'ojt' ? 'Invite Other OJTs (optional)' : 'Assigned OJTs *'} />}
                 renderValue={(selected) => (
                   <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                     {(selected as string[]).map((id) => {
@@ -340,13 +364,18 @@ export default function TaskModal({
                   </Box>
                 )}
               >
-                {ojts.map((ojt) => (
+                {ojts
+                  .filter((o) => o.id !== currentUser?.id)
+                  .map((ojt) => (
                   <MenuItem key={ojt.id} value={ojt.id}>
                     <Checkbox checked={assignedOjtIds.includes(ojt.id)} />
                     <Avatar src={ojt.avatar_url} sx={{ width: 24, height: 24, mr: 1 }}>
                       {ojt.full_name.charAt(0)}
                     </Avatar>
-                    <ListItemText primary={ojt.full_name} secondary={ojt.department} />
+                    <ListItemText
+                      primary={ojt.full_name}
+                      secondary={currentUser?.role === 'ojt' ? `Will be invited` : ojt.department}
+                    />
                   </MenuItem>
                 ))}
               </Select>
@@ -378,7 +407,9 @@ export default function TaskModal({
                 </Avatar>
                 <Box>
                   <Typography variant="body2" fontWeight={600}>{currentUser.full_name}</Typography>
-                  <Typography variant="caption" color="text.secondary">Task creator (auto-set)</Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    {currentUser.role === 'ojt' ? 'Task creator (auto-assigned as accepted)' : 'Task creator (auto-set)'}
+                  </Typography>
                 </Box>
               </Box>
             </Grid>

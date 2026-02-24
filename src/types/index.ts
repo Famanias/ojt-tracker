@@ -73,7 +73,8 @@ export interface KanbanTask {
   updated_at: string;
   // joined
   assignee?: Profile;
-  assigned_ojts?: Profile[];
+  assigned_ojts?: Profile[]; // only accepted assignees
+  task_assignees_detail?: TaskAssigneeDetail[]; // all assignees with status
   attachments?: TaskAttachment[];
 }
 
@@ -82,7 +83,14 @@ export interface TaskAssignee {
   task_id: string;
   user_id: string;
   assigned_at: string;
+  status: 'pending' | 'accepted' | 'rejected';
   profile?: Profile;
+}
+
+export interface TaskAssigneeDetail {
+  user_id: string;
+  status: 'pending' | 'accepted' | 'rejected';
+  profile: Profile;
 }
 
 export interface TaskAttachment {

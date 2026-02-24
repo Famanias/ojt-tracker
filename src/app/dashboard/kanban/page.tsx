@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
-import { KanbanColumn, Profile } from '@/types';
+import { KanbanColumn, Profile, TaskAssigneeDetail } from '@/types';
 import KanbanBoardClient from '@/components/kanban/KanbanBoardClient';
 
 export const dynamic = 'force-dynamic';
@@ -14,8 +14,9 @@ export default async function KanbanPage() {
       supabase.from('kanban_tasks').select(`
         *,
         assignee:profiles!kanban_tasks_assignee_id_fkey(id, full_name, avatar_url, role),
-        assigned_ojts:task_assignees(
+        task_assignees_raw:task_assignees(
           user_id,
+          status,
           profile:profiles(id, full_name, avatar_url)
         ),
         attachments:task_attachments(*)
@@ -24,14 +25,26 @@ export default async function KanbanPage() {
       supabase.from('profiles').select('*').eq('id', user!.id).single(),
     ]);
 
+  type RawAssignee = { user_id: string; status: string; profile: Profile };
   const enrichedCols = (cols ?? []).map((col) => ({
     ...col,
     tasks: (tasks ?? [])
       .filter((t: { column_id: string }) => t.column_id === col.id)
-      .map((t: { assigned_ojts?: { profile: Profile }[] }) => ({
-        ...t,
-        assigned_ojts: (t.assigned_ojts ?? []).map((a) => a.profile),
-      })),
+      .map((t: { task_assignees_raw?: RawAssignee[] }) => {
+        const raw: RawAssignee[] = t.task_assignees_raw ?? [];
+        const task_assignees_detail: TaskAssigneeDetail[] = raw.map((a) => ({
+          user_id: a.user_id,
+          status: a.status as 'pending' | 'accepted' | 'rejected',
+          profile: a.profile,
+        }));
+        return {
+          ...t,
+          task_assignees_detail,
+          assigned_ojts: task_assignees_detail
+            .filter((a) => a.status === 'accepted')
+            .map((a) => a.profile),
+        };
+      }),
   })) as KanbanColumn[];
 
   return (
