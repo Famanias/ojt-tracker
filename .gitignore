@@ -45,3 +45,4 @@ check.mjs
 create_users.mjs
 fix_handle_new_user.sql
 supabase/fix_handle_new_user.sql
+supabase/fix_handle_new_user.sql
