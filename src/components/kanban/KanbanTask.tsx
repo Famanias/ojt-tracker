@@ -3,14 +3,16 @@
 import React, { useState } from 'react';
 import {
   Box, Card, CardContent, Typography, Avatar, AvatarGroup,
-  Chip, IconButton, Menu, MenuItem, ListItemIcon, Tooltip,
+  Chip, IconButton, Menu, MenuItem, ListItemIcon, Tooltip, Button,
 } from '@mui/material';
 import {
   MoreVert as MoreIcon,
   Edit as EditIcon,
-  Delete as DeleteIcon,
+  Archive as ArchiveIcon,
   AttachFile as AttachIcon,
   CalendarToday as DateIcon,
+  HourglassEmpty as PendingIcon,
+  PersonAdd as VolunteerIcon,
 } from '@mui/icons-material';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -21,11 +23,15 @@ interface Props {
   task: KanbanTask;
   canManage?: boolean;
   isDragging?: boolean;
+  hasPendingInvitation?: boolean;
+  canVolunteer?: boolean;
   onEdit?: () => void;
-  onDelete?: () => void;
+  onArchive?: () => void;
+  onView?: () => void;
+  onVolunteer?: () => void;
 }
 
-export default function KanbanTaskCard({ task, canManage = false, isDragging = false, onEdit, onDelete }: Props) {
+export default function KanbanTaskCard({ task, canManage = false, isDragging = false, hasPendingInvitation = false, canVolunteer = false, onEdit, onArchive, onView, onVolunteer }: Props) {
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
 
   const { attributes, listeners, setNodeRef, transform, transition, isDragging: isSortable } =
@@ -46,9 +52,10 @@ export default function KanbanTaskCard({ task, canManage = false, isDragging = f
       <Card
         {...attributes}
         {...listeners}
+        onClick={(e) => { e.stopPropagation(); onView?.(); }}
         sx={{
           borderRadius: 2,
-          cursor: isDragging ? 'grabbing' : 'grab',
+          cursor: isDragging ? 'grabbing' : 'pointer',
           boxShadow: isDragging
             ? '0 16px 32px rgba(0,0,0,0.2)'
             : '0 1px 3px rgba(0,0,0,0.08)',
@@ -64,18 +71,30 @@ export default function KanbanTaskCard({ task, canManage = false, isDragging = f
         <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
           {/* Priority + Menu */}
           <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', mb: 1 }}>
-            <Chip
-              label={task.priority}
-              size="small"
-              sx={{
-                bgcolor: `${pColor}20`,
-                color: pColor,
-                fontWeight: 600,
-                fontSize: 10,
-                height: 20,
-                textTransform: 'capitalize',
-              }}
-            />
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap' }}>
+              <Chip
+                label={task.priority}
+                size="small"
+                sx={{
+                  bgcolor: `${pColor}20`,
+                  color: pColor,
+                  fontWeight: 600,
+                  fontSize: 10,
+                  height: 20,
+                  textTransform: 'capitalize',
+                }}
+              />
+              {hasPendingInvitation && (
+                <Tooltip title="You have been invited to this task">
+                  <Chip
+                    icon={<PendingIcon sx={{ fontSize: 11 }} />}
+                    label="Invited"
+                    size="small"
+                    sx={{ bgcolor: '#fef3c7', color: '#b45309', fontWeight: 600, fontSize: 10, height: 20 }}
+                  />
+                </Tooltip>
+              )}
+            </Box>
             {canManage && (
               <IconButton
                 size="small"
@@ -142,13 +161,30 @@ export default function KanbanTaskCard({ task, canManage = false, isDragging = f
               </AvatarGroup>
             )}
 
-            {/* Attachments count */}
-            {attachments.length > 0 && (
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, ml: 'auto' }}>
-                <AttachIcon sx={{ fontSize: 12, color: 'text.secondary' }} />
-                <Typography variant="caption" color="text.secondary">{attachments.length}</Typography>
-              </Box>
-            )}
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, ml: 'auto' }}>
+              {/* Volunteer button */}
+              {canVolunteer && (
+                <Tooltip title="Join this task">
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    startIcon={<VolunteerIcon sx={{ fontSize: 13 }} />}
+                    onClick={(e) => { e.stopPropagation(); onVolunteer?.(); }}
+                    sx={{ fontSize: 10, py: 0.25, px: 0.75, minWidth: 0, height: 22, lineHeight: 1 }}
+                  >
+                    Join
+                  </Button>
+                </Tooltip>
+              )}
+
+              {/* Attachments count */}
+              {attachments.length > 0 && (
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                  <AttachIcon sx={{ fontSize: 12, color: 'text.secondary' }} />
+                  <Typography variant="caption" color="text.secondary">{attachments.length}</Typography>
+                </Box>
+              )}
+            </Box>
           </Box>
 
           {/* Assigned by */}
@@ -175,11 +211,11 @@ export default function KanbanTaskCard({ task, canManage = false, isDragging = f
           Edit Task
         </MenuItem>
         <MenuItem
-          onClick={() => { setMenuAnchor(null); onDelete?.(); }}
-          sx={{ color: 'error.main' }}
+          onClick={() => { setMenuAnchor(null); onArchive?.(); }}
+          sx={{ color: 'warning.dark' }}
         >
-          <ListItemIcon><DeleteIcon fontSize="small" color="error" /></ListItemIcon>
-          Delete Task
+          <ListItemIcon><ArchiveIcon fontSize="small" color="warning" /></ListItemIcon>
+          Archive Task
         </MenuItem>
       </Menu>
     </Box>

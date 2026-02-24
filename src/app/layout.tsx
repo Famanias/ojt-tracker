@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { Geist } from "next/font/google";
 import "./globals.css";
-import { AuthProvider } from "@/lib/context/AuthContext";
 import MuiThemeProvider from "@/components/shared/MuiThemeProvider";
 import { AppRouterCacheProvider } from "@mui/material-nextjs/v15-appRouter";
 
@@ -25,7 +24,7 @@ export default function RootLayout({
       <body className={`${geistSans.variable} antialiased`}>
         <AppRouterCacheProvider>
           <MuiThemeProvider>
-            <AuthProvider>{children}</AuthProvider>
+            {children}
           </MuiThemeProvider>
         </AppRouterCacheProvider>
       </body>

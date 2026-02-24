@@ -18,7 +18,8 @@ import {
   BarChart as ReportIcon,
 } from '@mui/icons-material';
 import { useRouter, usePathname } from 'next/navigation';
-import { useAuth } from '@/lib/context/AuthContext';
+import { createClient } from '@/lib/supabase/client';
+import { Profile } from '@/types';
 import { roleLabel } from '@/lib/utils/format';
 
 const DRAWER_WIDTH = 260;
@@ -34,17 +35,23 @@ interface NavItem {
 const navItems: NavItem[] = [
   { label: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard', roles: ['ojt', 'supervisor', 'admin'] },
   { label: 'Attendance', icon: <ClockIcon />, path: '/dashboard/attendance', roles: ['ojt', 'supervisor', 'admin'] },
-  { label: 'Kanban Board', icon: <KanbanIcon />, path: '/dashboard/kanban', roles: ['supervisor', 'admin'] },
+  { label: 'Kanban Board', icon: <KanbanIcon />, path: '/dashboard/kanban', roles: ['ojt', 'supervisor', 'admin'] },
   { label: 'Reports', icon: <ReportIcon />, path: '/dashboard/reports', roles: ['supervisor', 'admin'] },
   { label: 'Users', icon: <PeopleIcon />, path: '/dashboard/admin/users', roles: ['admin'] },
   { label: 'Site Settings', icon: <SettingsIcon />, path: '/dashboard/admin/settings', roles: ['admin'] },
 ];
 
-export default function Sidebar() {
+export default function Sidebar({ profile }: { profile: Profile }) {
   const [collapsed, setCollapsed] = useState(false);
-  const { profile, signOut } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
+  const supabase = createClient();
+
+  const signOut = async () => {
+    await supabase.auth.signOut();
+    router.refresh();
+    router.push('/login');
+  };
 
   const filteredItems = navItems.filter((item) =>
     item.roles.includes(profile?.role ?? '')

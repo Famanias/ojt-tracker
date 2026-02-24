@@ -22,17 +22,22 @@ import KanbanTaskCard from './KanbanTask';
 interface Props {
   column: KanbanColumn;
   canManage: boolean;
+  canAddTask?: boolean;
   isDragging?: boolean;
+  currentUserId?: string;
+  isOjt?: boolean;
   onAddTask: () => void;
   onEditColumn: () => void;
   onDeleteColumn: () => void;
   onEditTask: (task: KanbanTask) => void;
-  onDeleteTask: (taskId: string) => void;
+  onArchiveTask: (taskId: string) => void;
+  onViewTask: (task: KanbanTask) => void;
+  onVolunteer?: (taskId: string) => void;
 }
 
 export default function KanbanColumnComponent({
-  column, canManage, isDragging = false, onAddTask, onEditColumn,
-  onDeleteColumn, onEditTask, onDeleteTask,
+  column, canManage, canAddTask = false, isDragging = false, currentUserId, isOjt = false,
+  onAddTask, onEditColumn, onDeleteColumn, onEditTask, onArchiveTask, onViewTask, onVolunteer,
 }: Props) {
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
 
@@ -136,6 +141,17 @@ export default function KanbanColumnComponent({
               </IconButton>
             </Box>
           )}
+          {!canManage && canAddTask && (
+            <Tooltip title="Add your task">
+              <IconButton
+                size="small"
+                onClick={(e) => { e.stopPropagation(); onAddTask(); }}
+                sx={{ color: column.color }}
+              >
+                <AddIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          )}
         </Box>
 
         {/* Tasks area */}
@@ -156,15 +172,34 @@ export default function KanbanColumnComponent({
             items={tasks.map((t) => t.id)}
             strategy={verticalListSortingStrategy}
           >
-            {tasks.map((task) => (
-              <KanbanTaskCard
-                key={task.id}
-                task={task}
-                canManage={canManage}
-                onEdit={() => onEditTask(task)}
-                onDelete={() => onDeleteTask(task.id)}
-              />
-            ))}
+            {tasks.map((task) => {
+              const pendingInvite = (task.task_assignees_detail ?? []).some(
+                (a) => a.user_id === currentUserId && a.status === 'pending'
+              );
+              // A user is assigned if they are the creator OR an accepted assignee
+              const isAssigned = task.assignee_id === currentUserId ||
+                (task.task_assignees_detail ?? []).some(
+                  (a) => a.user_id === currentUserId && a.status === 'accepted'
+                );
+              // An OJT can volunteer if they have NO existing row in task_assignees at all
+              const alreadyInTask = task.assignee_id === currentUserId ||
+                (task.task_assignees_detail ?? []).some((a) => a.user_id === currentUserId);
+              const canVolunteer = isOjt && !alreadyInTask;
+              const canEditTask = canManage || isAssigned;
+              return (
+                <KanbanTaskCard
+                  key={task.id}
+                  task={task}
+                  canManage={canEditTask}
+                  canVolunteer={canVolunteer}
+                  hasPendingInvitation={pendingInvite}
+                  onEdit={() => onEditTask(task)}
+                  onArchive={() => onArchiveTask(task.id)}
+                  onView={() => onViewTask(task)}
+                  onVolunteer={() => onVolunteer?.(task.id)}
+                />
+              );
+            })}
           </SortableContext>
 
           {tasks.length === 0 && (
@@ -175,7 +210,7 @@ export default function KanbanColumnComponent({
               }}
             >
               <Typography variant="body2">No tasks yet</Typography>
-              {canManage && (
+              {(canManage || canAddTask) && (
                 <Button size="small" startIcon={<AddIcon />} onClick={onAddTask} sx={{ mt: 1 }}>
                   Add Task
                 </Button>
@@ -185,7 +220,7 @@ export default function KanbanColumnComponent({
         </Box>
 
         {/* Footer Add Button */}
-        {canManage && tasks.length > 0 && (
+        {(canManage || canAddTask) && tasks.length > 0 && (
           <Box sx={{ p: 1, borderTop: '1px solid #f1f5f9' }}>
             <Button
               fullWidth size="small" startIcon={<AddIcon />}

@@ -1,43 +1,24 @@
-'use client';
+import { createClient } from '@/lib/supabase/server';
+import DashboardShell from '@/components/shared/DashboardShell';
+import { redirect } from 'next/navigation';
 
-import React from 'react';
-import { Box } from '@mui/material';
-import Sidebar from '@/components/shared/Sidebar';
-import { useAuth } from '@/lib/context/AuthContext';
-import LoadingSpinner from '@/components/shared/LoadingSpinner';
-import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
-
-export default function DashboardLayout({
+export default async function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const { user, loading } = useAuth();
-  const router = useRouter();
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
 
-  useEffect(() => {
-    if (!loading && !user) {
-      router.push('/login');
-    }
-  }, [user, loading, router]);
+  if (!user) redirect('/login');
 
-  if (loading) return <LoadingSpinner fullPage message="Loading your workspace..." />;
-  if (!user) return null;
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('id', user.id)
+    .single();
 
-  return (
-    <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: 'background.default' }}>
-      <Sidebar />
-      <Box
-        component="main"
-        sx={{
-          flex: 1,
-          overflow: 'auto',
-          minHeight: '100vh',
-        }}
-      >
-        {children}
-      </Box>
-    </Box>
-  );
+  if (!profile) redirect('/login');
+
+  return <DashboardShell profile={profile}>{children}</DashboardShell>;
 }

@@ -38,6 +38,7 @@ create table site_settings (
   longitude numeric(10,7) not null,
   radius_meters integer not null default 150,
   address text,
+  archive_retention_days integer not null default 7,
   updated_by uuid references profiles(id),
   updated_at timestamptz not null default now()
 );
@@ -98,6 +99,8 @@ create table kanban_tasks (
   position integer not null default 0,
   due_date date,
   priority text default 'medium',                -- low, medium, high
+  archived_at timestamptz,
+  archived_by uuid references profiles(id),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -180,17 +183,48 @@ create policy "All authenticated can view tasks" on kanban_tasks for select usin
 create policy "Supervisors/Admins can manage tasks" on kanban_tasks for all using (
   exists (select 1 from profiles where id = auth.uid() and role in ('supervisor', 'admin'))
 );
+-- OJTs can create tasks (they become the assignee_id)
+create policy "OJTs can insert own tasks" on kanban_tasks for insert with check (
+  auth.uid() = assignee_id
+);
+-- OJTs can update/delete their own tasks
+create policy "OJTs can update own tasks" on kanban_tasks for update using (
+  auth.uid() = assignee_id
+);
+create policy "OJTs can delete own tasks" on kanban_tasks for delete using (
+  auth.uid() = assignee_id
+);
 
 -- Task assignees policies
 create policy "All authenticated can view task assignees" on task_assignees for select using (auth.uid() is not null);
 create policy "Supervisors/Admins can manage task assignees" on task_assignees for all using (
   exists (select 1 from profiles where id = auth.uid() and role in ('supervisor', 'admin'))
 );
+-- OJTs can insert assignees for tasks they created
+create policy "OJTs can insert assignees for own tasks" on task_assignees for insert with check (
+  exists (select 1 from kanban_tasks where id = task_id and assignee_id = auth.uid())
+);
+-- OJTs can update their own assignment row (accept/reject invitations)
+create policy "OJTs can update own assignment status" on task_assignees for update using (
+  auth.uid() = user_id
+);
+-- OJTs can delete assignees from tasks they created
+create policy "OJTs can delete assignees for own tasks" on task_assignees for delete using (
+  exists (select 1 from kanban_tasks where id = task_id and assignee_id = auth.uid())
+);
 
 -- Task attachments policies
 create policy "All authenticated can view attachments" on task_attachments for select using (auth.uid() is not null);
 create policy "Supervisors/Admins can manage attachments" on task_attachments for all using (
   exists (select 1 from profiles where id = auth.uid() and role in ('supervisor', 'admin'))
+);
+-- OJTs can upload attachments to tasks they created
+create policy "OJTs can insert attachments for own tasks" on task_attachments for insert with check (
+  exists (select 1 from kanban_tasks where id = task_id and assignee_id = auth.uid())
+);
+-- OJTs can delete attachments from tasks they created
+create policy "OJTs can delete attachments for own tasks" on task_attachments for delete using (
+  exists (select 1 from kanban_tasks where id = task_id and assignee_id = auth.uid())
 );
 
 -- ============================================================
