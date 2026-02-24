@@ -24,6 +24,8 @@ export interface SiteSettings {
   longitude: number;
   radius_meters: number;
   address?: string;
+  timezone?: string;
+  archive_retention_days?: number;
   updated_by?: string;
   updated_at: string;
 }

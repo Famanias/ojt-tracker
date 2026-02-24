@@ -38,6 +38,7 @@ create table site_settings (
   longitude numeric(10,7) not null,
   radius_meters integer not null default 150,
   address text,
+  timezone text not null default 'UTC',
   archive_retention_days integer not null default 7,
   updated_by uuid references profiles(id),
   updated_at timestamptz not null default now()
