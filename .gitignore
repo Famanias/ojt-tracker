@@ -39,3 +39,8 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# supabase scripts
+check.mjs
+create_users.mjs
+fix_handle_new_user.sql
