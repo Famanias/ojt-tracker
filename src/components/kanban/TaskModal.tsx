@@ -90,6 +90,7 @@ export default function TaskModal({
         setExistingAttachments([]);
       }
       setError('');
+      
     }
   }, [open, editingTask, defaultColumnId]);
 

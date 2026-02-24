@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { KanbanColumn, Profile } from '@/types';
-import KanbanBoard from '@/components/kanban/KanbanBoard';
+import KanbanBoardClient from '@/components/kanban/KanbanBoardClient';
 
 export const dynamic = 'force-dynamic';
 
@@ -35,7 +35,7 @@ export default async function KanbanPage() {
   })) as KanbanColumn[];
 
   return (
-    <KanbanBoard
+    <KanbanBoardClient
       initialColumns={enrichedCols}
       initialOjts={(ojts ?? []) as Profile[]}
       initialProfile={profile as Profile}

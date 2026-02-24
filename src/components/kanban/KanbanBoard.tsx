@@ -336,6 +336,7 @@ export default function KanbanBoard({ initialColumns, initialOjts, initialProfil
         onSave={() => { setColumnDialogOpen(false); fetchBoard(); }}
         editingColumn={editingColumn}
         nextPosition={columns.length}
+        profileId={initialProfile.id}
       />
     </Box>
   );

@@ -7,7 +7,6 @@ import {
 } from '@mui/material';
 import { createClient } from '@/lib/supabase/client';
 import { KanbanColumn } from '@/types';
-import { useAuth } from '@/lib/context/AuthContext';
 
 const PRESET_COLORS = [
   '#6366f1', '#f59e0b', '#22c55e', '#ef4444',
@@ -20,15 +19,15 @@ interface Props {
   onSave: () => void;
   editingColumn: KanbanColumn | null;
   nextPosition: number;
+  profileId?: string;
 }
 
-export default function ColumnDialog({ open, onClose, onSave, editingColumn, nextPosition }: Props) {
+export default function ColumnDialog({ open, onClose, onSave, editingColumn, nextPosition, profileId }: Props) {
   const [title, setTitle] = useState('');
   const [color, setColor] = useState('#6366f1');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const supabase = createClient();
-  const { profile } = useAuth();
 
   useEffect(() => {
     if (editingColumn) {
@@ -55,7 +54,7 @@ export default function ColumnDialog({ open, onClose, onSave, editingColumn, nex
     } else {
       const { error: insertError } = await supabase
         .from('kanban_columns')
-        .insert({ title: title.trim(), color, position: nextPosition, created_by: profile?.id });
+        .insert({ title: title.trim(), color, position: nextPosition, created_by: profileId });
       if (insertError) { setError(insertError.message); setSaving(false); return; }
     }
 
