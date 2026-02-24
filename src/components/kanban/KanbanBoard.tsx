@@ -7,8 +7,14 @@ import {
   UniqueIdentifier,
 } from '@dnd-kit/core';
 import { arrayMove, SortableContext, horizontalListSortingStrategy } from '@dnd-kit/sortable';
-import { Box, Button, Typography, CircularProgress, Alert, Badge } from '@mui/material';
-import { Add as AddIcon, HourglassEmpty as PendingIcon } from '@mui/icons-material';
+import {
+  Box, Button, Typography, CircularProgress, Alert, Badge,
+  Autocomplete, TextField, Chip, Tooltip, Avatar,
+} from '@mui/material';
+import {
+  Add as AddIcon, HourglassEmpty as PendingIcon,
+  FilterList as FilterIcon,
+} from '@mui/icons-material';
 import { createClient } from '@/lib/supabase/client';
 import { KanbanColumn, KanbanTask, Profile } from '@/types';
 import KanbanColumnComponent from './KanbanColumn';
@@ -31,6 +37,8 @@ export default function KanbanBoard({ initialColumns, initialOjts, initialProfil
   const [activeTask, setActiveTask] = useState<KanbanTask | null>(null);
   const [activeColumn, setActiveColumn] = useState<KanbanColumn | null>(null);
   const [viewingTask, setViewingTask] = useState<KanbanTask | null>(null);
+  const [filterOjtIds, setFilterOjtIds] = useState<string[]>([]);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [taskModalOpen, setTaskModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<KanbanTask | null>(null);
   const [defaultColumnId, setDefaultColumnId] = useState<string>('');
@@ -46,56 +54,80 @@ export default function KanbanBoard({ initialColumns, initialOjts, initialProfil
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
   );
 
-  const fetchBoard = useCallback(async () => {
-    setLoading(true);
+  type RawAssignee = { user_id: string; status?: string; profile: Profile };
 
-    const [{ data: cols, error: colError }, { data: tasks }, { data: ojts }] =
-      await Promise.all([
-        supabase.from('kanban_columns').select('*').order('position'),
-        supabase.from('kanban_tasks').select(`
-          *,
-          assignee:profiles!kanban_tasks_assignee_id_fkey(id, full_name, avatar_url, role),
-          task_assignees_raw:task_assignees(
-            user_id,
-            status,
-            profile:profiles(id, full_name, avatar_url, department)
-          ),
-          attachments:task_attachments(*)
-        `).order('position'),
-        supabase.from('profiles').select('*').eq('role', 'ojt').eq('is_active', true),
-      ]);
-
-    if (colError) { setError(colError.message); setLoading(false); return; }
-
-    setAllOjts(ojts ?? []);
-
-    const enrichedCols = (cols ?? []).map((col) => ({
+  const buildEnrichedCols = (cols: KanbanColumn[], tasks: KanbanTask[]) =>
+    (cols ?? []).map((col) => ({
       ...col,
       tasks: (tasks ?? [])
-        .filter((t) => t.column_id === col.id)
-        .map((t) => {
-          const detail = (t.task_assignees_raw ?? []).map(
-            (a: { user_id: string; status: string; profile: Profile }) => ({
-              user_id: a.user_id,
-              status: a.status as 'pending' | 'accepted' | 'rejected',
-              profile: a.profile,
-            })
-          );
+        .filter((t: KanbanTask) => t.column_id === col.id)
+        .map((t: KanbanTask & { task_assignees_raw?: RawAssignee[] }) => {
+          const raw: RawAssignee[] = t.task_assignees_raw ?? [];
+          const detail = raw.map((a) => ({
+            user_id: a.user_id,
+            status: (a.status ?? 'accepted') as 'pending' | 'accepted' | 'rejected',
+            profile: a.profile,
+          }));
           return {
             ...t,
             task_assignees_detail: detail,
             assigned_ojts: detail
-              .filter((a: { status: string }) => a.status === 'accepted')
-              .map((a: { profile: Profile }) => a.profile),
+              .filter((a) => a.status === 'accepted')
+              .map((a) => a.profile),
           };
         }),
     }));
 
-    setColumns(enrichedCols);
+  const fetchBoard = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
+    else setIsRefreshing(true);
+
+    const taskQuery = `
+      *,
+      assignee:profiles!kanban_tasks_assignee_id_fkey(id, full_name, avatar_url, role),
+      task_assignees_raw:task_assignees(
+        user_id,
+        status,
+        profile:profiles(id, full_name, avatar_url, department)
+      ),
+      attachments:task_attachments(*)
+    `;
+
+    const taskQueryFallback = `
+      *,
+      assignee:profiles!kanban_tasks_assignee_id_fkey(id, full_name, avatar_url, role),
+      task_assignees_raw:task_assignees(
+        user_id,
+        profile:profiles(id, full_name, avatar_url, department)
+      ),
+      attachments:task_attachments(*)
+    `;
+
+    const [{ data: cols, error: colError }, tasksRes, { data: ojts }] =
+      await Promise.all([
+        supabase.from('kanban_columns').select('*').order('position'),
+        supabase.from('kanban_tasks').select(taskQuery).order('position'),
+        supabase.from('profiles').select('*').eq('role', 'ojt').eq('is_active', true),
+      ]);
+
+    if (colError) { setError(colError.message); setLoading(false); setIsRefreshing(false); return; }
+
+    // Fallback if status column doesn't exist yet in DB
+    let tasks = tasksRes.data;
+    if (tasksRes.error) {
+      const fallback = await supabase.from('kanban_tasks').select(taskQueryFallback).order('position');
+      tasks = fallback.data;
+      if (fallback.error) setError(fallback.error.message);
+    }
+
+    setAllOjts(ojts ?? []);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    setColumns(buildEnrichedCols(cols ?? [], tasks as any ?? []));
     setLoading(false);
+    setIsRefreshing(false);
   }, []);
 
-  useEffect(() => { fetchBoard(); }, [fetchBoard]);
+  useEffect(() => { fetchBoard(false); }, [fetchBoard]);
 
   // ---- DnD Handlers ----
 
@@ -121,8 +153,8 @@ export default function KanbanBoard({ initialColumns, initialOjts, initialProfil
     for (const col of columns) {
       const task = col.tasks?.find((t) => t.id === id);
       if (task) {
-        // OJTs can only drag their own tasks
-        if (isOjt && task.assignee_id !== profile.id) return;
+        // OJTs can only drag tasks they are assigned to
+        if (isOjt && !isAssignedToTask(task)) return;
         setActiveTask(task); return;
       }
     }
@@ -130,6 +162,19 @@ export default function KanbanBoard({ initialColumns, initialOjts, initialProfil
 
   const findColumnOfTask = (taskId: string) =>
     columns.find((col) => col.tasks?.some((t) => t.id === taskId));
+
+  const isAssignedToTask = (task: KanbanTask): boolean =>
+    task.assignee_id === profile.id ||
+    (task.task_assignees_detail ?? []).some(
+      (a) => a.user_id === profile.id && a.status === 'accepted'
+    );
+
+  const volunteerForTask = async (taskId: string) => {
+    const { error: err } = await supabase
+      .from('task_assignees')
+      .insert({ task_id: taskId, user_id: profile.id, status: 'accepted' });
+    if (!err) fetchBoard(true);
+  };
 
   const onDragOver = (event: DragOverEvent) => {
     const { active, over } = event;
@@ -255,8 +300,24 @@ export default function KanbanBoard({ initialColumns, initialOjts, initialProfil
 
   const deleteTask = async (taskId: string) => {
     await supabase.from('kanban_tasks').delete().eq('id', taskId);
-    fetchBoard();
+    fetchBoard(true);
   };
+
+  // Columns with filter applied (admin/supervisor only)
+  const displayedColumns = filterOjtIds.length === 0
+    ? columns
+    : columns.map((col) => ({
+        ...col,
+        tasks: (col.tasks ?? []).filter((t) => {
+          const acceptedIds = [
+            ...(t.assignee_id ? [t.assignee_id] : []),
+            ...(t.task_assignees_detail ?? [])
+              .filter((a) => a.status === 'accepted')
+              .map((a) => a.user_id),
+          ];
+          return filterOjtIds.some((id) => acceptedIds.includes(id));
+        }),
+      }));
 
   const openCreateColumn = () => {
     setEditingColumn(null);
@@ -273,7 +334,7 @@ export default function KanbanBoard({ initialColumns, initialOjts, initialProfil
     fetchBoard();
   };
 
-  if (loading) {
+  if (loading && columns.length === 0) {
     return (
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '60vh', gap: 2 }}>
         <CircularProgress />
@@ -284,10 +345,14 @@ export default function KanbanBoard({ initialColumns, initialOjts, initialProfil
 
   return (
     <Box sx={{ p: 3, height: '100vh', display: 'flex', flexDirection: 'column' }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
-        <Box>
-          <Typography variant="h4" fontWeight={800}>Kanban Board</Typography>
-          <Typography color="text.secondary">Manage and track OJT tasks</Typography>
+      {/* Header */}
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <Box>
+            <Typography variant="h4" fontWeight={800}>Kanban Board</Typography>
+            <Typography color="text.secondary">Manage and track OJT tasks</Typography>
+          </Box>
+          {isRefreshing && <CircularProgress size={20} sx={{ ml: 1 }} />}
         </Box>
         <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
           {isOjt && (() => {
@@ -323,6 +388,43 @@ export default function KanbanBoard({ initialColumns, initialOjts, initialProfil
         </Box>
       </Box>
 
+      {/* Filter bar — admin/supervisor only */}
+      {canManage && allOjts.length > 0 && (
+        <Box sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <FilterIcon sx={{ color: 'text.secondary', flexShrink: 0 }} />
+          <Autocomplete
+            multiple
+            size="small"
+            options={allOjts}
+            getOptionLabel={(o) => o.full_name}
+            value={allOjts.filter((o) => filterOjtIds.includes(o.id))}
+            onChange={(_, val) => setFilterOjtIds(val.map((o) => o.id))}
+            sx={{ minWidth: 320, maxWidth: 520 }}
+            renderInput={(params) => (
+              <TextField {...params} placeholder="Filter by OJT(s)…" label="Filter tasks" />
+            )}
+            renderTags={(val, getTagProps) =>
+              val.map((o, i) => (
+                <Chip
+                  {...getTagProps({ index: i })}
+                  key={o.id}
+                  size="small"
+                  avatar={<Avatar src={o.avatar_url}>{o.full_name.charAt(0)}</Avatar>}
+                  label={o.full_name}
+                />
+              ))
+            }
+          />
+          {filterOjtIds.length > 0 && (
+            <Tooltip title="Clear filter">
+              <Button size="small" onClick={() => setFilterOjtIds([])} color="inherit">
+                Clear
+              </Button>
+            </Tooltip>
+          )}
+        </Box>
+      )}
+
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
       <Box sx={{ flex: 1, overflow: 'hidden' }}>
@@ -349,19 +451,21 @@ export default function KanbanBoard({ initialColumns, initialOjts, initialProfil
                 '&::-webkit-scrollbar-thumb': { bgcolor: '#cbd5e1', borderRadius: 4 },
               }}
             >
-              {columns.map((col) => (
+              {displayedColumns.map((col) => (
                 <KanbanColumnComponent
                   key={col.id}
                   column={col}
                   canManage={canManage}
                   canAddTask={true}
                   currentUserId={profile.id}
+                  isOjt={isOjt}
                   onAddTask={() => openCreateTask(col.id)}
                   onEditColumn={() => openEditColumn(col)}
                   onDeleteColumn={() => deleteColumn(col.id)}
                   onEditTask={openEditTask}
                   onDeleteTask={deleteTask}
                   onViewTask={openViewTask}
+                  onVolunteer={volunteerForTask}
                 />
               ))}
             </Box>
@@ -392,7 +496,7 @@ export default function KanbanBoard({ initialColumns, initialOjts, initialProfil
         open={!!viewingTask}
         onClose={() => setViewingTask(null)}
         onEdit={() => { if (viewingTask) openEditTask(viewingTask); }}
-        onRefresh={() => { setViewingTask(null); fetchBoard(); }}
+        onRefresh={() => { setViewingTask(null); fetchBoard(true); }}
         task={viewingTask}
         column={viewingTask ? columns.find((c) => c.id === viewingTask.column_id) : undefined}
         currentUser={profile}
@@ -402,7 +506,7 @@ export default function KanbanBoard({ initialColumns, initialOjts, initialProfil
       <TaskModal
         open={taskModalOpen}
         onClose={() => { setTaskModalOpen(false); setEditingTask(null); }}
-        onSave={() => { setTaskModalOpen(false); setEditingTask(null); fetchBoard(); }}
+        onSave={() => { setTaskModalOpen(false); setEditingTask(null); fetchBoard(true); }}
         editingTask={editingTask}
         defaultColumnId={defaultColumnId}
         columns={columns}
@@ -414,7 +518,7 @@ export default function KanbanBoard({ initialColumns, initialOjts, initialProfil
       <ColumnDialog
         open={columnDialogOpen}
         onClose={() => setColumnDialogOpen(false)}
-        onSave={() => { setColumnDialogOpen(false); fetchBoard(); }}
+        onSave={() => { setColumnDialogOpen(false); fetchBoard(true); }}
         editingColumn={editingColumn}
         nextPosition={columns.length}
         profileId={initialProfile.id}

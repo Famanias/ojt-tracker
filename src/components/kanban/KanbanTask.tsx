@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import {
   Box, Card, CardContent, Typography, Avatar, AvatarGroup,
-  Chip, IconButton, Menu, MenuItem, ListItemIcon, Tooltip,
+  Chip, IconButton, Menu, MenuItem, ListItemIcon, Tooltip, Button,
 } from '@mui/material';
 import {
   MoreVert as MoreIcon,
@@ -12,6 +12,7 @@ import {
   AttachFile as AttachIcon,
   CalendarToday as DateIcon,
   HourglassEmpty as PendingIcon,
+  PersonAdd as VolunteerIcon,
 } from '@mui/icons-material';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -23,12 +24,14 @@ interface Props {
   canManage?: boolean;
   isDragging?: boolean;
   hasPendingInvitation?: boolean;
+  canVolunteer?: boolean;
   onEdit?: () => void;
   onDelete?: () => void;
   onView?: () => void;
+  onVolunteer?: () => void;
 }
 
-export default function KanbanTaskCard({ task, canManage = false, isDragging = false, hasPendingInvitation = false, onEdit, onDelete, onView }: Props) {
+export default function KanbanTaskCard({ task, canManage = false, isDragging = false, hasPendingInvitation = false, canVolunteer = false, onEdit, onDelete, onView, onVolunteer }: Props) {
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
 
   const { attributes, listeners, setNodeRef, transform, transition, isDragging: isSortable } =
@@ -158,13 +161,30 @@ export default function KanbanTaskCard({ task, canManage = false, isDragging = f
               </AvatarGroup>
             )}
 
-            {/* Attachments count */}
-            {attachments.length > 0 && (
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, ml: 'auto' }}>
-                <AttachIcon sx={{ fontSize: 12, color: 'text.secondary' }} />
-                <Typography variant="caption" color="text.secondary">{attachments.length}</Typography>
-              </Box>
-            )}
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, ml: 'auto' }}>
+              {/* Volunteer button */}
+              {canVolunteer && (
+                <Tooltip title="Join this task">
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    startIcon={<VolunteerIcon sx={{ fontSize: 13 }} />}
+                    onClick={(e) => { e.stopPropagation(); onVolunteer?.(); }}
+                    sx={{ fontSize: 10, py: 0.25, px: 0.75, minWidth: 0, height: 22, lineHeight: 1 }}
+                  >
+                    Join
+                  </Button>
+                </Tooltip>
+              )}
+
+              {/* Attachments count */}
+              {attachments.length > 0 && (
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                  <AttachIcon sx={{ fontSize: 12, color: 'text.secondary' }} />
+                  <Typography variant="caption" color="text.secondary">{attachments.length}</Typography>
+                </Box>
+              )}
+            </Box>
           </Box>
 
           {/* Assigned by */}

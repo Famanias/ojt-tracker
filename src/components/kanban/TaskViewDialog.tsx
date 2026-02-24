@@ -20,6 +20,7 @@ import {
   Flag as PriorityIcon,
   ViewKanban as ColumnIcon,
   HourglassEmpty as PendingIcon,
+  PersonAdd as VolunteerIcon,
 } from '@mui/icons-material';
 import { createClient } from '@/lib/supabase/client';
 import { KanbanTask, Profile, KanbanColumn } from '@/types';
@@ -37,6 +38,7 @@ interface Props {
 
 export default function TaskViewDialog({ open, onClose, onEdit, onRefresh, task, column, currentUser }: Props) {
   const [responding, setResponding] = useState<'accepting' | 'rejecting' | null>(null);
+  const [volunteering, setVolunteering] = useState(false);
   const [error, setError] = useState('');
   const supabase = createClient();
 
@@ -44,11 +46,14 @@ export default function TaskViewDialog({ open, onClose, onEdit, onRefresh, task,
 
   const isCreator = task.assignee_id === currentUser.id;
   const canManage = currentUser.role === 'admin' || currentUser.role === 'supervisor';
-  const canEdit = isCreator || canManage;
 
   const allAssignees = task.task_assignees_detail ?? [];
-  const myInvitation = allAssignees.find((a) => a.user_id === currentUser.id);
-  const hasPendingInvitation = myInvitation?.status === 'pending';
+  const myRecord = allAssignees.find((a) => a.user_id === currentUser.id);
+  const hasPendingInvitation = myRecord?.status === 'pending';
+  const isAcceptedAssignee = myRecord?.status === 'accepted';
+  const alreadyInTask = isCreator || !!myRecord;
+  const canEdit = isCreator || canManage || isAcceptedAssignee;
+  const canVolunteer = currentUser.role === 'ojt' && !alreadyInTask;
 
   const pColor = priorityColor(task.priority);
   const attachments = task.attachments ?? [];
@@ -73,6 +78,21 @@ export default function TaskViewDialog({ open, onClose, onEdit, onRefresh, task,
       onClose();
     } finally {
       setResponding(null);
+    }
+  };
+
+  const handleVolunteer = async () => {
+    setError('');
+    setVolunteering(true);
+    try {
+      const { error: err } = await supabase
+        .from('task_assignees')
+        .insert({ task_id: task.id, user_id: currentUser.id, status: 'accepted' });
+      if (err) { setError(err.message); return; }
+      onRefresh();
+      onClose();
+    } finally {
+      setVolunteering(false);
     }
   };
 
@@ -298,7 +318,20 @@ export default function TaskViewDialog({ open, onClose, onEdit, onRefresh, task,
           </>
         )}
 
-        {/* Edit button for creator/admin/supervisor */}
+        {/* Volunteer button for OJTs on tasks they haven’t joined */}
+        {canVolunteer && (
+          <Button
+            variant="contained"
+            color="primary"
+            startIcon={volunteering ? <CircularProgress size={16} color="inherit" /> : <VolunteerIcon />}
+            onClick={handleVolunteer}
+            disabled={volunteering}
+          >
+            Join Task
+          </Button>
+        )}
+
+        {/* Edit button for creator/admin/supervisor/accepted assignee */}
         {canEdit && !hasPendingInvitation && (
           <Button variant="outlined" startIcon={<EditIcon />} onClick={() => { onClose(); onEdit(); }}>
             Edit Task
