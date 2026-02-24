@@ -1,19 +1,12 @@
-'use client';
+import { createClient } from '@/lib/supabase/server';
+import { redirect } from 'next/navigation';
 
-import { useEffect } from 'react';
-import { useAuth } from '@/lib/context/AuthContext';
-import { useRouter } from 'next/navigation';
-import LoadingSpinner from '@/components/shared/LoadingSpinner';
+export default async function DashboardIndex() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
 
-export default function DashboardIndex() {
-  const { profile, loading } = useAuth();
-  const router = useRouter();
+  if (!user) redirect('/login');
 
-  useEffect(() => {
-    if (!loading && profile) {
-      router.replace(`/dashboard/${profile.role}`);
-    }
-  }, [profile, loading, router]);
-
-  return <LoadingSpinner fullPage message="Redirecting to your dashboard..." />;
+  const role = (user.user_metadata?.role as string) ?? 'ojt';
+  redirect(`/dashboard/${role}`);
 }

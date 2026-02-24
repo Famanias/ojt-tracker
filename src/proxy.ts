@@ -37,17 +37,12 @@ export async function proxy(request: NextRequest) {
 
   const { pathname } = request.nextUrl;
 
+  // Role is stored in user_metadata at creation — no extra DB round trip needed
+  const role: string = (user?.user_metadata?.role as string) ?? 'ojt';
+
   // Public routes
   if (pathname === '/login' || pathname === '/') {
     if (user) {
-      // Redirect logged-in users to their dashboard
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', user.id)
-        .single();
-
-      const role = profile?.role ?? 'ojt';
       return NextResponse.redirect(new URL(`/dashboard/${role}`, request.url));
     }
     return supabaseResponse;
@@ -57,15 +52,6 @@ export async function proxy(request: NextRequest) {
   if (!user) {
     return NextResponse.redirect(new URL('/login', request.url));
   }
-
-  // Role-based protection
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single();
-
-  const role = profile?.role ?? 'ojt';
 
   if (pathname.startsWith('/dashboard/admin') && role !== 'admin') {
     return NextResponse.redirect(new URL(`/dashboard/${role}`, request.url));

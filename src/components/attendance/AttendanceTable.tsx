@@ -21,11 +21,12 @@ import { format, startOfMonth, endOfMonth } from 'date-fns';
 interface Props {
   userId?: string; // if undefined, shows all (for admin/supervisor)
   showUser?: boolean;
+  initialRecords?: (Attendance & { profile?: Profile })[];
 }
 
-export default function AttendanceTable({ userId, showUser = false }: Props) {
-  const [records, setRecords] = useState<(Attendance & { profile?: Profile })[]>([]);
-  const [loading, setLoading] = useState(true);
+export default function AttendanceTable({ userId, showUser = false, initialRecords }: Props) {
+  const [records, setRecords] = useState<(Attendance & { profile?: Profile })[]>(initialRecords ?? []);
+  const [loading, setLoading] = useState(!initialRecords);
   const [search, setSearch] = useState('');
   const [month, setMonth] = useState(format(new Date(), 'yyyy-MM'));
   const supabase = createClient();

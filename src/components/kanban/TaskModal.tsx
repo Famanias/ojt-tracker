@@ -18,6 +18,7 @@ import {
 } from '@mui/icons-material';
 import { useDropzone } from 'react-dropzone';
 import { createClient } from '@/lib/supabase/client';
+import { uploadTaskAttachment, deleteTaskAttachments } from '@/actions/attachments';
 import { KanbanTask, KanbanColumn, Profile, TaskAttachment } from '@/types';
 import { getFileType, formatFileSize, priorityColor } from '@/lib/utils/format';
 import { v4 as uuidv4 } from 'uuid';
@@ -35,11 +36,18 @@ interface Props {
 
 const PRIORITIES = ['low', 'medium', 'high'];
 
+type UploadStatus = 'uploading' | 'done' | 'error';
+
 interface UploadingFile {
   id: string;
   file: File;
   progress: number;
+  status: UploadStatus;
   error?: string;
+  // set once upload completes
+  uploadedPath?: string;
+  // local blob URL for instant preview (images only)
+  previewUrl?: string;
 }
 
 export default function TaskModal({
@@ -59,6 +67,11 @@ export default function TaskModal({
 
   useEffect(() => {
     if (open) {
+      // Revoke any previous blob URLs then reset
+      setUploadingFiles((prev) => {
+        prev.forEach((u) => { if (u.previewUrl) URL.revokeObjectURL(u.previewUrl); });
+        return [];
+      });
       if (editingTask) {
         setTitle(editingTask.title);
         setDescription(editingTask.description ?? '');
@@ -76,51 +89,27 @@ export default function TaskModal({
         setDueDate('');
         setExistingAttachments([]);
       }
-      setUploadingFiles([]);
       setError('');
     }
   }, [open, editingTask, defaultColumnId]);
 
-  const uploadFile = async (taskId: string, file: File, uploadId: string) => {
-    const ext = file.name.split('.').pop();
-    const path = `${taskId}/${uuidv4()}.${ext}`;
-
-    // Update progress
-    const updateProgress = (progress: number) =>
+  // Upload via server action (service-role key) — bypasses bucket RLS entirely.
+  const uploadFileNow = useCallback(async (uploadId: string, file: File) => {
+    const update = (patch: Partial<UploadingFile>) =>
       setUploadingFiles((prev) =>
-        prev.map((u) => (u.id === uploadId ? { ...u, progress } : u))
+        prev.map((u) => (u.id === uploadId ? { ...u, ...patch } : u))
       );
 
-    updateProgress(20);
+    const fd = new FormData();
+    fd.append('file', file);
+    const result = await uploadTaskAttachment(fd);
 
-    const { data: storageData, error: storageError } = await supabase.storage
-      .from('task-attachments')
-      .upload(path, file, { upsert: false });
-
-    if (storageError) {
-      setUploadingFiles((prev) =>
-        prev.map((u) => (u.id === uploadId ? { ...u, error: storageError.message, progress: 0 } : u))
-      );
-      return;
+    if (result.error || !result.path) {
+      update({ status: 'error', error: result.error ?? 'Upload failed' });
+    } else {
+      update({ status: 'done', progress: 100, uploadedPath: result.path });
     }
-
-    updateProgress(80);
-
-    const { data: { publicUrl } } = supabase.storage
-      .from('task-attachments')
-      .getPublicUrl(path);
-
-    await supabase.from('task_attachments').insert({
-      task_id: taskId,
-      file_name: file.name,
-      file_url: publicUrl,
-      file_type: getFileType(file.type),
-      file_size: file.size,
-      uploaded_by: currentUser?.id,
-    });
-
-    updateProgress(100);
-  };
+  }, []);
 
   const handleSave = async () => {
     if (!title.trim()) { setError('Task title is required.'); return; }
@@ -169,22 +158,58 @@ export default function TaskModal({
       assignedOjtIds.map((uid) => ({ task_id: taskId!, user_id: uid }))
     );
 
-    // Upload pending files
-    const pending = uploadingFiles.filter((u) => !u.error && u.progress < 100);
-    await Promise.all(pending.map((u) => uploadFile(taskId!, u.file, u.id)));
+    // Wait for any still-uploading files to finish
+    const stillUploading = uploadingFiles.filter((u) => u.status === 'uploading');
+    if (stillUploading.length > 0) {
+      setError('Please wait for all files to finish uploading.');
+      setSaving(false);
+      return;
+    }
+
+    // Insert DB records for all successfully uploaded files.
+    // file_url stores the proxy path so we can generate signed URLs on demand.
+    const done = uploadingFiles.filter((u) => u.status === 'done' && u.uploadedPath);
+    if (done.length > 0) {
+      await supabase.from('task_attachments').insert(
+        done.map((u) => ({
+          task_id: taskId!,
+          file_name: u.file.name,
+          file_url: `/api/task-attachment?path=${encodeURIComponent(u.uploadedPath!)}`,
+          file_type: getFileType(u.file.type),
+          file_size: u.file.size,
+          uploaded_by: currentUser?.id,
+        }))
+      );
+    }
 
     setSaving(false);
     onSave();
   };
+
+  // On cancel: delete any files that were uploaded to storage but not saved to the DB
+  const handleClose = useCallback(async () => {
+    const paths = uploadingFiles
+      .filter((u) => u.uploadedPath)
+      .map((u) => u.uploadedPath!);
+    if (paths.length) await deleteTaskAttachments(paths);
+    // Revoke blob preview URLs
+    uploadingFiles.forEach((u) => { if (u.previewUrl) URL.revokeObjectURL(u.previewUrl); });
+    onClose();
+  }, [uploadingFiles, onClose]);
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     const newUploads: UploadingFile[] = acceptedFiles.map((file) => ({
       id: uuidv4(),
       file,
       progress: 0,
+      status: 'uploading' as UploadStatus,
+      // Instant local preview for images — no network needed
+      previewUrl: file.type.startsWith('image/') ? URL.createObjectURL(file) : undefined,
     }));
     setUploadingFiles((prev) => [...prev, ...newUploads]);
-  }, []);
+    // Start uploading immediately — don't wait for Save
+    newUploads.forEach((u) => uploadFileNow(u.id, u.file));
+  }, [uploadFileNow]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -200,14 +225,22 @@ export default function TaskModal({
     maxSize: 50 * 1024 * 1024,
   });
 
-  const removeUploadingFile = (id: string) =>
+  const removeUploadingFile = async (id: string) => {
+    const file = uploadingFiles.find((u) => u.id === id);
+    if (file?.previewUrl) URL.revokeObjectURL(file.previewUrl);
+    // Delete from storage via server action (service role)
+    if (file?.uploadedPath) await deleteTaskAttachments([file.uploadedPath]);
     setUploadingFiles((prev) => prev.filter((u) => u.id !== id));
+  };
 
   const deleteAttachment = async (attachmentId: string, fileUrl: string) => {
     await supabase.from('task_attachments').delete().eq('id', attachmentId);
-    // Optionally delete from storage
-    const path = new URL(fileUrl).pathname.split('/task-attachments/')[1];
-    if (path) await supabase.storage.from('task-attachments').remove([path]);
+    // Extract storage path from our proxy URL format: /api/task-attachment?path=...
+    try {
+      const url = new URL(fileUrl, window.location.origin);
+      const path = url.searchParams.get('path');
+      if (path) await deleteTaskAttachments([path]);
+    } catch { /* ignore malformed URLs */ }
     setExistingAttachments((prev) => prev.filter((a) => a.id !== attachmentId));
   };
 
@@ -218,12 +251,12 @@ export default function TaskModal({
   };
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth PaperProps={{ sx: { borderRadius: 3 } }}>
+    <Dialog open={open} onClose={handleClose} maxWidth="md" fullWidth PaperProps={{ sx: { borderRadius: 3 } }}>
       <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', pb: 1 }}>
-        <Typography variant="h6" fontWeight={700}>
+        <Typography variant="h6" fontWeight={700} component="span">
           {editingTask ? 'Edit Task' : 'New Task'}
         </Typography>
-        <IconButton onClick={onClose} size="small"><CloseIcon /></IconButton>
+        <IconButton onClick={handleClose} size="small"><CloseIcon /></IconButton>
       </DialogTitle>
 
       <DialogContent dividers sx={{ p: 3 }}>
@@ -403,8 +436,18 @@ export default function TaskModal({
                       p: 1.5, borderRadius: 1.5, border: '1px solid #e2e8f0',
                     }}
                   >
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
-                      {fileIcon(getFileType(upload.file.type))}
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: upload.status !== 'error' ? 0.5 : 0 }}>
+                      {/* Image preview thumbnail */}
+                      {upload.previewUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={upload.previewUrl}
+                          alt={upload.file.name}
+                          style={{ width: 36, height: 36, objectFit: 'cover', borderRadius: 4, flexShrink: 0 }}
+                        />
+                      ) : (
+                        fileIcon(getFileType(upload.file.type))
+                      )}
                       <Typography variant="body2" noWrap sx={{ flex: 1 }}>{upload.file.name}</Typography>
                       <Typography variant="caption" color="text.secondary">
                         {formatFileSize(upload.file.size)}
@@ -413,14 +456,12 @@ export default function TaskModal({
                         <CloseIcon fontSize="small" />
                       </IconButton>
                     </Box>
-                    {upload.error ? (
+                    {upload.status === 'error' ? (
                       <Typography variant="caption" color="error">{upload.error}</Typography>
+                    ) : upload.status === 'done' ? (
+                      <LinearProgress variant="determinate" value={100} color="success" sx={{ height: 4, borderRadius: 2 }} />
                     ) : (
-                      <LinearProgress
-                        variant={upload.progress === 0 ? 'indeterminate' : 'determinate'}
-                        value={upload.progress}
-                        sx={{ height: 4, borderRadius: 2 }}
-                      />
+                      <LinearProgress variant="indeterminate" sx={{ height: 4, borderRadius: 2 }} />
                     )}
                   </Box>
                 ))}
@@ -452,7 +493,7 @@ export default function TaskModal({
       </DialogContent>
 
       <DialogActions sx={{ p: 2.5 }}>
-        <Button onClick={onClose}>Cancel</Button>
+        <Button onClick={handleClose}>Cancel</Button>
         <Button
           variant="contained"
           onClick={handleSave}

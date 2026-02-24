@@ -18,7 +18,8 @@ import {
   BarChart as ReportIcon,
 } from '@mui/icons-material';
 import { useRouter, usePathname } from 'next/navigation';
-import { useAuth } from '@/lib/context/AuthContext';
+import { createClient } from '@/lib/supabase/client';
+import { Profile } from '@/types';
 import { roleLabel } from '@/lib/utils/format';
 
 const DRAWER_WIDTH = 260;
@@ -40,11 +41,16 @@ const navItems: NavItem[] = [
   { label: 'Site Settings', icon: <SettingsIcon />, path: '/dashboard/admin/settings', roles: ['admin'] },
 ];
 
-export default function Sidebar() {
+export default function Sidebar({ profile }: { profile: Profile }) {
   const [collapsed, setCollapsed] = useState(false);
-  const { profile, signOut } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
+  const supabase = createClient();
+
+  const signOut = async () => {
+    await supabase.auth.signOut();
+    router.push('/login');
+  };
 
   const filteredItems = navItems.filter((item) =>
     item.roles.includes(profile?.role ?? '')

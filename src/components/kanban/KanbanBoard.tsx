@@ -15,12 +15,17 @@ import KanbanColumnComponent from './KanbanColumn';
 import KanbanTaskCard from './KanbanTask';
 import TaskModal from './TaskModal';
 import ColumnDialog from './ColumnDialog';
-import { useAuth } from '@/lib/context/AuthContext';
 
-export default function KanbanBoard() {
-  const [columns, setColumns] = useState<KanbanColumn[]>([]);
-  const [allOjts, setAllOjts] = useState<Profile[]>([]);
-  const [loading, setLoading] = useState(true);
+interface Props {
+  initialColumns: KanbanColumn[];
+  initialOjts: Profile[];
+  initialProfile: Profile;
+}
+
+export default function KanbanBoard({ initialColumns, initialOjts, initialProfile }: Props) {
+  const [columns, setColumns] = useState<KanbanColumn[]>(initialColumns);
+  const [allOjts, setAllOjts] = useState<Profile[]>(initialOjts);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [activeTask, setActiveTask] = useState<KanbanTask | null>(null);
   const [activeColumn, setActiveColumn] = useState<KanbanColumn | null>(null);
@@ -30,7 +35,7 @@ export default function KanbanBoard() {
   const [columnDialogOpen, setColumnDialogOpen] = useState(false);
   const [editingColumn, setEditingColumn] = useState<KanbanColumn | null>(null);
   const supabase = createClient();
-  const { profile } = useAuth();
+  const profile = initialProfile;
 
   const canManage = profile?.role === 'admin' || profile?.role === 'supervisor';
 
@@ -40,31 +45,23 @@ export default function KanbanBoard() {
 
   const fetchBoard = useCallback(async () => {
     setLoading(true);
-    const { data: cols, error: colError } = await supabase
-      .from('kanban_columns')
-      .select('*')
-      .order('position');
+
+    const [{ data: cols, error: colError }, { data: tasks }, { data: ojts }] =
+      await Promise.all([
+        supabase.from('kanban_columns').select('*').order('position'),
+        supabase.from('kanban_tasks').select(`
+          *,
+          assignee:profiles!kanban_tasks_assignee_id_fkey(id, full_name, avatar_url, role),
+          assigned_ojts:task_assignees(
+            user_id,
+            profile:profiles(id, full_name, avatar_url)
+          ),
+          attachments:task_attachments(*)
+        `).order('position'),
+        supabase.from('profiles').select('*').eq('role', 'ojt').eq('is_active', true),
+      ]);
 
     if (colError) { setError(colError.message); setLoading(false); return; }
-
-    const { data: tasks } = await supabase
-      .from('kanban_tasks')
-      .select(`
-        *,
-        assignee:profiles!kanban_tasks_assignee_id_fkey(id, full_name, avatar_url, role),
-        assigned_ojts:task_assignees(
-          user_id,
-          profile:profiles(id, full_name, avatar_url)
-        ),
-        attachments:task_attachments(*)
-      `)
-      .order('position');
-
-    const { data: ojts } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('role', 'ojt')
-      .eq('is_active', true);
 
     setAllOjts(ojts ?? []);
 
