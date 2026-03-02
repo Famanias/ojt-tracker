@@ -40,9 +40,10 @@ export async function proxy(request: NextRequest) {
   // Role is stored in user_metadata at creation — no extra DB round trip needed
   const role: string = (user?.user_metadata?.role as string) ?? 'ojt';
 
-  // Public routes
-  if (pathname === '/login' || pathname === '/') {
-    if (user) {
+  // Public routes (unauthenticated access allowed)
+  const publicRoutes = ['/', '/login', '/docs', '/privacy', '/terms', '/contact'];
+  if (publicRoutes.includes(pathname)) {
+    if (user && (pathname === '/login' || pathname === '/')) {
       return NextResponse.redirect(new URL(`/dashboard/${role}`, request.url));
     }
     return supabaseResponse;
