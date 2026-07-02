@@ -2,13 +2,26 @@
 @tailwind components;
 @tailwind utilities;
 
-*, *::before, *::after {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
+}
+
+/* !important here is intentional: MUI's CssBaseline (if wrapped around the
+   app in MuiThemeProvider) injects its own `body { background-color }` rule
+   at runtime via Emotion, using the theme's light-mode default (white).
+   That injection can land after this stylesheet in the cascade, so a plain
+   rule here isn't guaranteed to win — !important makes it deterministic. */
+html {
+  background: #000000 !important;
 }
 
 body {
   margin: 0;
   padding: 0;
+  background: #000000 !important;
+  color: #ffffff;
 }
 
 /* Smooth scrollbar */
@@ -16,14 +29,27 @@ body {
   width: 6px;
   height: 6px;
 }
+
 ::-webkit-scrollbar-track {
-  background: #f1f5f9;
-}
-::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-  border-radius: 3px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: #0a0a0a;
 }
 
+::-webkit-scrollbar-thumb {
+  background: #262626;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #3f3f46;
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

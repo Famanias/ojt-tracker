@@ -15,11 +15,17 @@ import {
   Business as OrgIcon,
 } from '@mui/icons-material';
 import { createClient } from '@/lib/supabase/client';
-import { SiteSettings } from '@/types';
+import { SiteSettings, Organization } from '@/types';
 import { saveSiteSettings, regenerateInviteCode } from '@/actions/settings';
 import { useAuth } from '@/lib/context/AuthContext';
 
-export default function SettingsClient({ initialSettings }: { initialSettings: SiteSettings }) {
+export default function SettingsClient({
+  initialSettings,
+  serverOrganization,
+}: {
+  initialSettings: SiteSettings;
+  serverOrganization: Organization | null;
+}) {
   const [settings, setSettings] = useState<SiteSettings>(initialSettings);
   const [form, setForm] = useState({
     site_name: initialSettings.site_name,
@@ -35,7 +41,8 @@ export default function SettingsClient({ initialSettings }: { initialSettings: S
   const [copied, setCopied] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
   const supabase = createClient();
-  const { organization, refreshProfile } = useAuth();
+  const { organization: authOrg, refreshProfile } = useAuth();
+  const organization = authOrg || serverOrganization;
 
   const fetchSettings = useCallback(async () => {
     const { data } = await supabase.from('site_settings').select('*').limit(1).single();

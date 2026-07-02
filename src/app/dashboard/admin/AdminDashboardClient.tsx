@@ -65,6 +65,7 @@ function formatInTz(d: Date, tz: string) {
 
 export default function AdminDashboardClient({ stats, initialAttendance, settingsId, initialTimezone }: Props) {
   const [now, setNow] = useState(new Date());
+  const [mounted, setMounted] = useState(false);
   const [timezone, setTimezone] = useState(initialTimezone || 'UTC');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [pendingTz, setPendingTz] = useState(timezone);
@@ -72,6 +73,7 @@ export default function AdminDashboardClient({ stats, initialAttendance, setting
   const [saveError, setSaveError] = useState('');
 
   useEffect(() => {
+    setMounted(true);
     const id = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(id);
   }, []);
@@ -119,13 +121,13 @@ export default function AdminDashboardClient({ stats, initialAttendance, setting
           <GlobeIcon sx={{ color: '#6366f1', flexShrink: 0 }} />
           <Box>
             <Typography variant="body1" fontWeight={800} sx={{ lineHeight: 1.3, fontVariantNumeric: 'tabular-nums' }}>
-              {time}
+              {mounted ? time : '--:--:--'}
             </Typography>
             <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.4, display: 'block' }}>
-              {date}
+              {mounted ? date : 'Loading...'}
             </Typography>
             <Typography variant="caption" sx={{ color: '#6366f1', fontWeight: 600, display: 'block' }}>
-              {timezone} &nbsp;{offset}
+              {mounted ? `${timezone}  ${offset}` : timezone}
             </Typography>
           </Box>
           <Tooltip title="Edit Timezone">

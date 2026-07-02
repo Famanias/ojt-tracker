@@ -10,8 +10,8 @@ const geistSans = Geist({
 });
 
 export const metadata: Metadata = {
-  title: "OJT Tracker System",
-  description: "On-the-Job Training Time Tracking & Management System",
+  title: "Nexus",
+  description: "One workspace for on-the-job training — attendance, tasks, and progress, connected.",
 };
 
 export default function RootLayout({

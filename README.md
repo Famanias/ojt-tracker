@@ -1,168 +1,187 @@
-# OJT Tracker System
+# 🌌 Nexus
 
-A comprehensive On-the-Job Training tracker with time tracking, GPS clock-in/out enforcement, role-based dashboards, and a drag-and-drop Kanban board.
+> **Connecting Students, Supervisors, and Success.**
 
-## Features
+Nexus is a modern web-based **On-the-Job Training (OJT) Management System** designed to streamline internship administration through GPS-verified attendance, real-time time tracking, collaborative task management, and role-based dashboards.
 
-- **Time Tracking**  OJTs clock in and out; total hours automatically calculated
-- **GPS Enforcement**  OJTs can only clock in/out within a configurable radius of the workplace (set by admin); supervisors and admins are exempt
-- **Three User Roles**
-  - **OJT**  clock in/out, view own attendance history and hours progress, use Kanban board
-  - **Supervisor**  oversee all OJT attendance records, view Kanban board
-  - **Admin**  full user CRUD, site location settings, reports, Kanban board management
-- **Kanban Board**  drag-and-drop tasks and columns, assign tasks to OJTs, file/image/video attachments, priorities, due dates
-- **Reports**  CSV export of attendance data
-
-## Tech Stack
-
-- **Next.js 16** (App Router, TypeScript)
-- **Supabase** (Auth, PostgreSQL, Storage)
-- **Material UI v7**
-- **Tailwind CSS v4**
-- **@dnd-kit** (drag-and-drop)
+Built with a modern full-stack architecture, Nexus centralizes attendance monitoring, internship progress, and project collaboration into a single intuitive platform for students, supervisors, and administrators.
 
 ---
 
-## Setup Instructions
+## ✨ Overview
 
-### 1. Clone the Repository
+Managing OJT programs often involves multiple spreadsheets, paper attendance logs, and disconnected communication channels. Nexus eliminates these inefficiencies by providing a centralized platform where attendance, task management, reporting, and user administration work seamlessly together.
 
-```bash
-git clone <your-repo-url>
-cd ojt-tracker
-npm install
-```
-
-### 2. Create a Supabase Project
-
-1. Go to [supabase.com](https://supabase.com) and create a new project
-2. Wait for the project to be ready
-
-### 3. Run the Database Schema
-
-1. In your Supabase dashboard, go to **SQL Editor**
-2. Copy the contents of `supabase/schema.sql`
-3. Paste and click **Run**
-
-This creates all tables, RLS policies, triggers, storage buckets, and default data (default Kanban columns, default site settings pointing to Manila).
-
-### 4. Configure Environment Variables
-
-Edit `.env.local` with your Supabase credentials:
-
-```env
-NEXT_PUBLIC_SUPABASE_URL=https://your-project-id.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
-SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
-```
-
-Find these in your Supabase dashboard under **Project Settings  API**.
-
-> **Security**: Never commit `.env.local` to version control. The `SUPABASE_SERVICE_ROLE_KEY` bypasses all RLS policies and is only used server-side.
-
-### 5. Create the First Admin User
-
-Since there is no public registration, create the first admin manually:
-
-1. In your Supabase dashboard, go to **Authentication  Users**
-2. Click **Add user** and create a user with email/password
-3. Go to **Table Editor  profiles** and find that user
-4. Set the `role` column to `admin`
-
-Or via SQL Editor:
-
-```sql
-update profiles set role = 'admin' where email = 'your-admin@email.com';
-```
-
-### 6. Run the Development Server
-
-```bash
-npm run dev
-```
-
-Open [http://localhost:3000](http://localhost:3000)  you will be redirected to `/login`.
+Whether you're a student logging your daily attendance, a supervisor monitoring trainee progress, or an administrator managing the entire internship program, Nexus provides the tools needed to simplify every stage of the OJT experience.
 
 ---
 
-## User Roles & Permissions
+# 🚀 Key Features
 
-| Feature | OJT | Supervisor | Admin |
-|---|:---:|:---:|:---:|
-| Clock in/out (GPS required) | Yes |  |  |
-| View own attendance | Yes | Yes | Yes |
-| View all OJT attendance |  | Yes | Yes |
-| Kanban board | Yes | Yes | Yes |
-| Manage Kanban columns/tasks | Yes | Yes | Yes |
-| Reports & CSV export |  | Yes | Yes |
-| Manage users |  |  | Yes |
-| Configure site location/GPS |  |  | Yes |
+## ⏱️ Smart Time Tracking
+
+* One-click Clock In / Clock Out
+* Automatic computation of rendered hours
+* Daily attendance history
+* Required OJT hours progress tracking
 
 ---
 
-## GPS / Location Settings
+## 📍 GPS-Verified Attendance
 
-- Default location: Manila (14.5995 N, 120.9842 E) with 200m radius
-- Admins change GPS coordinates and radius in **Admin  Site Settings**
-- Use the **"Use My Current Location"** button to auto-fill coordinates
-- OJTs outside the radius will see an error when trying to clock in/out
+Nexus ensures attendance authenticity through configurable location verification.
 
----
-
-## Adding Users
-
-Admins can create users from **Admin  Manage Users**:
-
-- Fill in name, email, password, role, department, and required OJT hours
-- Users are created immediately (no email confirmation)
-- Users can be deactivated (soft-delete)
+* GPS-based Clock In / Clock Out
+* Configurable workplace coordinates
+* Adjustable attendance radius
+* Automatic distance validation
+* Supervisors and administrators are exempt from GPS restrictions
 
 ---
 
-## Kanban Board
+## 📋 Kanban Task Management
 
-- Default columns: **To Do**, **Doing**, **Done**
-- Drag columns to reorder; drag tasks between columns
-- Create custom columns with color coding
-- Tasks require a title and at least one assigned OJT
-- Attachments: images, videos, PDFs, Word/Excel (up to 50MB each)
+A built-in collaborative Kanban board keeps internship tasks organized.
 
----
-
-## Production Build
-
-```bash
-npm run build
-npm start
-```
+* Drag-and-drop task management
+* Custom workflow columns
+* Task assignment
+* Priority levels
+* Due dates
+* Rich descriptions
+* File attachments
+* Image, video, PDF, and document support
 
 ---
 
-## Project Structure
+## 👥 Role-Based Access Control
 
-```
+### 🎓 OJT
+
+* Clock In / Clock Out
+* View attendance history
+* Track completed hours
+* Access assigned Kanban tasks
+* Upload task attachments
+
+### 👨‍🏫 Supervisor
+
+* Monitor all assigned OJTs
+* Review attendance records
+* Manage Kanban tasks
+* Export attendance reports
+
+### 👨‍💼 Administrator
+
+* Complete user management
+* Configure GPS attendance settings
+* Manage departments
+* Generate reports
+* Manage Kanban workflows
+* System-wide administration
+
+---
+
+## 📊 Reporting
+
+Generate attendance reports with a single click.
+
+* CSV Export
+* Attendance summaries
+* Hour tracking
+* Historical attendance records
+
+---
+
+# 🛡 Security
+
+Nexus leverages Supabase Authentication and Row-Level Security (RLS) to ensure secure access across all user roles.
+
+Security features include:
+
+* Authentication
+* Role-based authorization
+* Protected API routes
+* GPS attendance validation
+* Secure file storage
+* Soft-delete user management
+
+---
+
+# 🛠 Technology Stack
+
+| Category       | Technology       |
+| -------------- | ---------------- |
+| Frontend       | Next.js 16       |
+| Language       | TypeScript       |
+| Backend        | Supabase         |
+| Database       | PostgreSQL       |
+| Authentication | Supabase Auth    |
+| Storage        | Supabase Storage |
+| UI Framework   | Material UI v7   |
+| Styling        | Tailwind CSS v4  |
+| Drag & Drop    | @dnd-kit         |
+
+---
+
+# 📱 Core Modules
+
+* Dashboard
+* Attendance Management
+* GPS Verification
+* Hours Progress Tracking
+* Kanban Workspace
+* User Management
+* Reports & Analytics
+* Site Settings
+
+---
+
+# 📂 Project Structure
+
+```text
 src/
- app/
-    api/users/          # Admin user creation API
-    dashboard/
-       admin/          # Admin dashboards (users, settings)
-       supervisor/     # Supervisor dashboard
-       ojt/            # OJT dashboard with clock-in/out
-       attendance/     # Attendance history
-       kanban/         # Kanban board
-       reports/        # Reports & CSV export
-    login/
- components/
-    attendance/         # ClockButton, AttendanceTable, HoursProgress
-    kanban/             # KanbanBoard, KanbanColumn, KanbanTask, TaskModal
-    shared/             # Sidebar, MuiThemeProvider, StatCard, LoadingSpinner
- lib/
-    context/            # AuthContext
-    hooks/              # useAttendance, useLocation
-    supabase/           # client.ts, server.ts
-    utils/              # distance.ts (GPS), format.ts
- proxy.ts                # Route protection & role-based redirects
- types/index.ts          # TypeScript type definitions
-supabase/
- schema.sql              # Full database schema + storage setup
+├── app/
+│   ├── dashboard/
+│   │   ├── admin/
+│   │   ├── supervisor/
+│   │   ├── ojt/
+│   │   ├── attendance/
+│   │   ├── kanban/
+│   │   └── reports/
+│   ├── api/
+│   └── login/
+│
+├── components/
+│   ├── attendance/
+│   ├── kanban/
+│   └── shared/
+│
+├── lib/
+│   ├── context/
+│   ├── hooks/
+│   ├── supabase/
+│   └── utils/
+│
+├── types/
+└── proxy.ts
 ```
+
+---
+
+# 🎯 Design Principles
+
+Nexus was built around four core principles:
+
+* **Simplicity** — Clean, intuitive interfaces that minimize learning time.
+* **Accountability** — GPS verification and automatic attendance tracking improve reliability.
+* **Collaboration** — Integrated Kanban boards encourage organized teamwork.
+* **Scalability** — Modern architecture built for future expansion and institutional deployment.
+
+---
+
+# 🌌 Why Nexus?
+
+The name **Nexus** represents a central point of connection—bringing together students, supervisors, administrators, attendance tracking, task management, and reporting into one unified ecosystem.
+
+Instead of juggling multiple tools, Nexus serves as the single hub where internship management happens efficiently, transparently, and securely.
