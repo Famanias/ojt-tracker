@@ -43,7 +43,9 @@ export default async function DashboardLayout({
     redirect('/login');
   }
 
-  if (!profile) redirect('/login');
+  if (!profile.org_id) {
+    redirect('/onboarding');
+  }
 
   return <DashboardShell profile={profile}>{children}</DashboardShell>;
 }

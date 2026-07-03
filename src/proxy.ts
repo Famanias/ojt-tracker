@@ -75,7 +75,7 @@ export async function proxy(request: NextRequest) {
   }
 
   if (!user) {
-    if (pathname.startsWith('/api/organizations')) {
+    if (pathname.startsWith('/api/organizations') || pathname === '/auth/callback') {
       return supabaseResponse;
     }
     return redirectWithCookies(new URL('/login', request.url));

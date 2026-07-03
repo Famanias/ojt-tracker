@@ -490,20 +490,20 @@ begin
     v_org_id := v_org_id_str::uuid;
   end if;
 
-  insert into profiles (id, full_name, email, role, org_id)
+  insert into profiles (id, full_name, email, role, org_id, avatar_url)
   values (
     new.id,
     coalesce(nullif(trim(new.raw_user_meta_data->>'full_name'), ''), split_part(new.email, '@', 1)),
     new.email,
     v_role,
-    v_org_id
+    v_org_id,
+    coalesce(new.raw_user_meta_data->>'avatar_url', new.raw_user_meta_data->>'picture')
   )
   on conflict (id) do update
     set
-      full_name  = excluded.full_name,
+      full_name  = coalesce(nullif(trim(new.raw_user_meta_data->>'full_name'), ''), profiles.full_name),
       email      = excluded.email,
-      role       = excluded.role,
-      org_id     = coalesce(excluded.org_id, profiles.org_id),
+      avatar_url = coalesce(coalesce(new.raw_user_meta_data->>'avatar_url', new.raw_user_meta_data->>'picture'), profiles.avatar_url),
       updated_at = now();
 
   return new;

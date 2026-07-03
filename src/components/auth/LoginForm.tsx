@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Box, Alert, Stack, Typography } from '@mui/material';
+import { Box, Alert, Stack, Typography, CircularProgress } from '@mui/material';
 import GoogleIcon from '@mui/icons-material/Google';
 import { createClient } from '@/lib/supabase/client';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -21,11 +21,20 @@ export default function LoginForm() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState('');
   const router = useRouter();
   const searchParams = useSearchParams();
   const registered = searchParams.get('registered');
+  const errorParam = searchParams.get('error');
+  const next = searchParams.get('next');
   const supabase = createClient();
+
+  React.useEffect(() => {
+    if (errorParam) {
+      setError(errorParam);
+    }
+  }, [errorParam]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -59,10 +68,22 @@ export default function LoginForm() {
   };
 
   const handleGoogleSignIn = async () => {
-    await supabase.auth.signInWithOAuth({
+    setGoogleLoading(true);
+    setError('');
+    const redirectToUrl = new URL('/auth/callback', window.location.origin);
+    if (next) {
+      redirectToUrl.searchParams.set('next', next);
+    }
+
+    const { error: oAuthError } = await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: `${window.location.origin}/auth/callback` },
+      options: { redirectTo: redirectToUrl.toString() },
     });
+
+    if (oAuthError) {
+      setError(oAuthError.message);
+      setGoogleLoading(false);
+    }
   };
 
   return (
@@ -80,8 +101,12 @@ export default function LoginForm() {
         )}
 
         <Stack spacing={1.5} sx={{ mb: 1 }}>
-          <SocialButton icon={<GoogleIcon />} onClick={handleGoogleSignIn}>
-            Continue with Google
+          <SocialButton
+            icon={googleLoading ? <CircularProgress size={20} color="inherit" /> : <GoogleIcon />}
+            onClick={handleGoogleSignIn}
+            disabled={googleLoading || loading}
+          >
+            {googleLoading ? 'Redirecting to Google...' : 'Continue with Google'}
           </SocialButton>
           {/* Add more providers here, e.g.:
               <SocialButton icon={<GitHubIcon />} onClick={handleGitHubSignIn}>

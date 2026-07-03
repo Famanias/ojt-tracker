@@ -13,7 +13,7 @@ import {
   Error as ErrorIcon,
 } from '@mui/icons-material';
 import { createClient } from '@/lib/supabase/client';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 import AuthPageShell from './AuthPageShell';
 import AuthCard from './AuthCard';
@@ -39,11 +39,20 @@ export default function RegisterForm() {
   const [orgName, setOrgName] = useState('');
   const [inviteCode, setInviteCode] = useState('');
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState('');
   const [inviteValid, setInviteValid] = useState<InviteVerifyResult | null>(null);
   const [verifyingCode, setVerifyingCode] = useState(false);
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const errorParam = searchParams.get('error');
   const supabase = createClient();
+
+  React.useEffect(() => {
+    if (errorParam) {
+      setError(errorParam);
+    }
+  }, [errorParam]);
 
   const verifyInviteCode = async (code: string) => {
     const trimmed = code.trim().toUpperCase();
@@ -70,10 +79,35 @@ export default function RegisterForm() {
   };
 
   const handleGoogleSignIn = async () => {
-    await supabase.auth.signInWithOAuth({
+    setGoogleLoading(true);
+    setError('');
+
+    // If they typed details for organization creation or joining, store it in a secure cookie
+    // to preserve intent without exposing it in the browser history/query parameters
+    const intent: { action?: 'create' | 'join'; orgName?: string; inviteCode?: string } = {};
+    if (tab === 0 && orgName.trim()) {
+      intent.action = 'create';
+      intent.orgName = orgName.trim();
+    } else if (tab === 1 && inviteCode.trim() && inviteValid?.valid) {
+      intent.action = 'join';
+      intent.inviteCode = inviteCode.trim().toUpperCase();
+    }
+
+    if (intent.action) {
+      document.cookie = `nexus_register_intent=${encodeURIComponent(
+        JSON.stringify(intent)
+      )}; path=/; max-age=600; SameSite=Lax; Secure`;
+    }
+
+    const { error: oAuthError } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: { redirectTo: `${window.location.origin}/auth/callback` },
     });
+
+    if (oAuthError) {
+      setError(oAuthError.message);
+      setGoogleLoading(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -149,8 +183,12 @@ export default function RegisterForm() {
         )}
 
         <Stack spacing={1.5} sx={{ mb: 1 }}>
-          <SocialButton icon={<GoogleIcon />} onClick={handleGoogleSignIn}>
-            Continue with Google
+          <SocialButton
+            icon={googleLoading ? <CircularProgress size={20} color="inherit" /> : <GoogleIcon />}
+            onClick={handleGoogleSignIn}
+            disabled={googleLoading || loading}
+          >
+            {googleLoading ? 'Redirecting to Google...' : 'Continue with Google'}
           </SocialButton>
         </Stack>
 
