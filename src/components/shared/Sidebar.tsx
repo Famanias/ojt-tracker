@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState } from 'react';
-import localFont from 'next/font/local';
 import {
   Drawer, Box, List, ListItem, ListItemButton, ListItemIcon,
   ListItemText, Typography, Avatar, Divider, IconButton, Tooltip,
@@ -24,11 +23,6 @@ import { Profile } from '@/types';
 import { roleLabel } from '@/lib/utils/format';
 import { useAuth } from '@/lib/context/AuthContext';
 
-// Path is relative to this file: src/components/shared/Sidebar.tsx -> public/fonts/
-const blanka = localFont({
-  src: '../../../public/fonts/Blanka-Regular.otf',
-  display: 'swap',
-});
 
 const DRAWER_WIDTH = 260;
 const DRAWER_MINI = 72;
@@ -112,8 +106,7 @@ export default function Sidebar({ profile }: { profile: Profile }) {
             <Typography
               component="div"
               noWrap
-              className={blanka.className}
-              sx={{ fontSize: '1.1rem', letterSpacing: '.04em', color: '#fff' }}
+              sx={{ fontFamily: 'var(--font-blanka), sans-serif', fontSize: '1.1rem', letterSpacing: '.04em', color: '#fff' }}
             >
               Nexus
             </Typography>

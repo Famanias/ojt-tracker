@@ -48,11 +48,11 @@ export async function proxy(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   console.log("MIDDLEWARE");
-  console.log({
-    pathname: request.nextUrl.pathname,
-    user: user?.id,
-    cookies: request.cookies.getAll().map(c => c.name),
-  });
+  // console.log({
+  //   pathname: request.nextUrl.pathname,
+  //   user: user?.id,
+  //   cookies: request.cookies.getAll().map(c => c.name),
+  // });
 
   const { pathname } = request.nextUrl;
   const role: string = (user?.user_metadata?.role as string) ?? 'ojt';

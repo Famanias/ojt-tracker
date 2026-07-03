@@ -41,7 +41,7 @@ export default function HeroPanel() {
       <Box sx={{ position: 'relative', zIndex: 1 }}>
         <Typography
           component="span"
-          sx={{ fontFamily: 'Blanka, sans-serif', fontSize: '1.5rem', letterSpacing: '.04em' }}
+          sx={{ fontFamily: 'var(--font-blanka), sans-serif', fontSize: '1.5rem', letterSpacing: '.04em' }}
         >
           Nexus
         </Typography>
