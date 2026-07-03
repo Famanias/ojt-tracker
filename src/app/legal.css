@@ -1,0 +1,348 @@
+/* ──────────────────────────────────────────────────────────────────────────
+   LEGAL / CONTACT PAGES — dark theme, matches landing.css tokens
+   ────────────────────────────────────────────────────────────────────── */
+
+.legal-page {
+    min-height: 100vh;
+    background: var(--bg);
+    color: var(--text);
+    display: flex;
+    flex-direction: column;
+}
+
+.legal-nav {
+    background: rgba(0, 0, 0, .7);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-sizing: border-box;
+}
+
+.legal-nav-inner {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 0 2rem;
+    height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.legal-logo {
+    display: flex;
+    align-items: center;
+    text-decoration: none;
+}
+
+.legal-logo .nexus-wordmark {
+    font-size: 1.1rem;
+}
+
+.btn-back {
+    display: inline-flex;
+    align-items: center;
+    gap: .4rem;
+    padding: .45rem 1rem;
+    border-radius: 6px;
+    font-size: .875rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    background: transparent;
+    border: 1px solid var(--border);
+    text-decoration: none;
+    transition: border-color .15s, color .15s, background .15s;
+    cursor: pointer;
+}
+
+.btn-back:hover {
+    border-color: var(--border-hover);
+    color: var(--text);
+    background: var(--surface-2);
+}
+
+.legal-hero {
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+    color: #fff;
+    padding: 3rem 2rem;
+}
+
+.legal-container {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 0 2rem;
+    box-sizing: border-box;
+}
+
+.legal-container-wide {
+    max-width: 1140px;
+    margin: 0 auto;
+    padding: 0 2rem;
+    box-sizing: border-box;
+}
+
+.legal-label {
+    display: inline-block;
+    font-size: .75rem;
+    font-weight: 600;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--text-tertiary);
+    margin-bottom: 1rem;
+}
+
+.legal-title {
+    font-size: clamp(1.75rem, 4vw, 2.5rem);
+    font-weight: 600;
+    margin: 0 0 .5rem;
+    letter-spacing: -.02em;
+    color: var(--text);
+}
+
+.legal-meta {
+    font-size: .9rem;
+    color: var(--text-tertiary);
+    margin: 0;
+}
+
+.legal-body {
+    padding: 3rem 2rem;
+    flex: 1;
+}
+
+.legal-section {
+    margin-bottom: 2.25rem;
+}
+
+.legal-section h2 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--text);
+    margin: 0 0 .625rem;
+}
+
+.legal-section p {
+    font-size: .95rem;
+    color: var(--text-secondary);
+    line-height: 1.75;
+    margin: .5rem 0;
+}
+
+.legal-section ul {
+    font-size: .95rem;
+    color: var(--text-secondary);
+    line-height: 1.75;
+    padding-left: 1.5rem;
+    margin: .5rem 0;
+}
+
+.legal-section li {
+    margin-bottom: .4rem;
+}
+
+.legal-section strong {
+    color: var(--text);
+}
+
+.legal-link {
+    color: var(--text);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.legal-link:hover {
+    color: var(--text-secondary);
+}
+
+/* Contact layout */
+.contact-layout {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 1rem;
+    align-items: start;
+}
+
+@media (max-width: 860px) {
+    .contact-layout {
+        grid-template-columns: 1fr;
+    }
+}
+
+.contact-form-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 2.5rem;
+    max-width: 860px;
+}
+
+.contact-form {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+}
+
+.contact-field {
+    display: flex;
+    flex-direction: column;
+    gap: .425rem;
+}
+
+.form-label {
+    font-size: .875rem;
+    font-weight: 600;
+    color: var(--text);
+}
+
+.form-input {
+    padding: .65rem .875rem;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: .95rem;
+    font-family: inherit;
+    color: var(--text);
+    background: var(--surface-2);
+    transition: border-color .15s, box-shadow .15s;
+    outline: none;
+    resize: vertical;
+}
+
+.form-input::placeholder {
+    color: var(--text-tertiary);
+}
+
+.form-input:focus {
+    border-color: var(--border-hover);
+    box-shadow: 0 0 0 3px rgba(255, 255, 255, .06);
+}
+
+.contact-textarea {
+    min-height: 130px;
+}
+
+.contact-submit {
+    padding: .75rem 1.5rem;
+    background: #ffffff;
+    color: #000000;
+    border: none;
+    border-radius: 8px;
+    font-size: .95rem;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background .15s;
+    align-self: flex-start;
+}
+
+.contact-submit:hover {
+    background: #e4e4e7;
+}
+
+.contact-success {
+    text-align: center;
+    padding: 3rem 1rem;
+}
+
+.contact-success-icon {
+    width: 56px;
+    height: 56px;
+    border: 1px solid var(--border-hover);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 1.25rem;
+}
+
+.contact-success-icon svg {
+    width: 26px;
+    height: 26px;
+    color: #fff;
+}
+
+.contact-success h2 {
+    font-size: 1.3rem;
+    font-weight: 600;
+    color: var(--text);
+    margin: 0 0 .5rem;
+}
+
+.contact-success p {
+    font-size: .95rem;
+    color: var(--text-secondary);
+    line-height: 1.6;
+    margin: 0 0 1.5rem;
+}
+
+.contact-success p strong {
+    color: var(--text);
+}
+
+.contact-home-link {
+    display: inline-flex;
+    padding: .6rem 1.25rem;
+    background: #ffffff;
+    color: #000000;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: .875rem;
+    text-decoration: none;
+    transition: background .15s;
+}
+
+.contact-home-link:hover {
+    background: #e4e4e7;
+}
+
+.contact-info {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.contact-info-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.25rem;
+}
+
+.contact-info-icon {
+    width: 38px;
+    height: 38px;
+    border: 1px solid var(--border-hover);
+    border-radius: 9px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: .75rem;
+    color: var(--text);
+}
+
+.contact-info-icon svg {
+    width: 18px;
+    height: 18px;
+}
+
+.contact-info-card h3 {
+    font-size: .92rem;
+    font-weight: 600;
+    color: var(--text);
+    margin: 0 0 .3rem;
+}
+
+.contact-info-card p {
+    font-size: .875rem;
+    color: var(--text-secondary);
+    margin: 0;
+    line-height: 1.5;
+}
+
+@media (max-width: 768px) {
+    .legal-body {
+        padding: 2rem 1.25rem;
+    }
+}

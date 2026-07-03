@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import '../landing.css';
+import '../legal.css';
 
 export default function ContactPage() {
   const [name, setName] = useState('');
@@ -24,8 +25,7 @@ export default function ContactPage() {
       <header className="legal-nav">
         <div className="legal-nav-inner">
           <Link href="/" className="legal-logo">
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="#4f46e5" strokeWidth={2}><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>
-            <span>OJT&nbsp;<strong>Tracker</strong></span>
+            <span className="nexus-wordmark">Nexus</span>
           </Link>
           <Link href="/" className="btn-back">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
@@ -103,7 +103,7 @@ export default function ContactPage() {
             ) : (
               <div className="contact-success">
                 <div className="contact-success-icon">
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="#16a34a" strokeWidth={2}>
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                 </div>
@@ -120,16 +120,16 @@ export default function ContactPage() {
           {/* Info cards */}
           <div className="contact-info">
             <div className="contact-info-card">
-              <div className="contact-info-icon" style={{ background: '#eef2ff', color: '#4f46e5' }}>
+              <div className="contact-info-icon">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                 </svg>
               </div>
               <h3>Email us</h3>
-              <p>support&#64;ojttracker.com</p>
+              <p>support&#64;usenexus.app</p>
             </div>
             <div className="contact-info-card">
-              <div className="contact-info-icon" style={{ background: '#f0fdf4', color: '#16a34a' }}>
+              <div className="contact-info-icon">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                 </svg>
@@ -138,13 +138,13 @@ export default function ContactPage() {
               <p>Available weekdays 9am&ndash;5pm PHT</p>
             </div>
             <div className="contact-info-card">
-              <div className="contact-info-icon" style={{ background: '#faf5ff', color: '#7c3aed' }}>
+              <div className="contact-info-icon">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
                 </svg>
               </div>
               <h3>Documentation</h3>
-              <p><Link href="/docs" style={{ color: '#4f46e5', textDecoration: 'underline' }}>Browse our guides and how-to articles</Link></p>
+              <p><Link href="/docs" className="legal-link">Browse our guides and how-to articles</Link></p>
             </div>
           </div>
 
@@ -157,8 +157,7 @@ export default function ContactPage() {
           <div className="footer-top">
             <div className="footer-brand">
               <div className="footer-brand-logo">
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="#818cf8" strokeWidth={2}><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>
-                <span>OJT&nbsp;<strong>Tracker</strong></span>
+                <span className="nexus-wordmark">Nexus</span>
               </div>
               <p className="footer-tagline">Track training hours. Drive progress.<br />Built for OJT programmes.</p>
             </div>
@@ -175,7 +174,7 @@ export default function ContactPage() {
             </div>
           </div>
           <div className="footer-bottom">
-            <p className="footer-copy">&copy; 2026 OJT Tracker. All rights reserved.</p>
+            <p className="footer-copy">&copy; 2026 Nexus. All rights reserved.</p>
           </div>
         </div>
       </footer>

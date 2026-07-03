@@ -1,9 +1,10 @@
 import Link from 'next/link';
 import '../landing.css';
+import '../legal.css';
 
 export const metadata = {
-  title: 'Terms of Service – OJT Tracker',
-  description: 'Terms and conditions for using the OJT Tracker platform.',
+  title: 'Terms of Service – Nexus',
+  description: 'Terms and conditions for using the Nexus platform.',
 };
 
 export default function TermsPage() {
@@ -14,8 +15,7 @@ export default function TermsPage() {
       <header className="legal-nav">
         <div className="legal-nav-inner">
           <Link href="/" className="legal-logo">
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="#4f46e5" strokeWidth={2}><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>
-            <span>OJT&nbsp;<strong>Tracker</strong></span>
+            <span className="nexus-wordmark">Nexus</span>
           </Link>
           <Link href="/" className="btn-back">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
@@ -38,17 +38,17 @@ export default function TermsPage() {
 
         <section className="legal-section">
           <h2>1. Acceptance of Terms</h2>
-          <p>By accessing or using OJT Tracker (&ldquo;the Service&rdquo;), you agree to be bound by these Terms of Service. If you do not agree to these terms, please do not use the Service. These terms apply to all users, including administrators, supervisors, and OJT trainees.</p>
+          <p>By accessing or using Nexus (&ldquo;the Service&rdquo;), you agree to be bound by these Terms of Service. If you do not agree to these terms, please do not use the Service. These terms apply to all users, including administrators, supervisors, and OJT trainees.</p>
         </section>
 
         <section className="legal-section">
           <h2>2. Description of Service</h2>
-          <p>OJT Tracker is an on-the-job training management platform that allows organisations to track trainee attendance, manage tasks via a kanban board, monitor OJT progress, and generate reports. The Service includes GPS-verified attendance logging, role-based dashboards, and reporting tools.</p>
+          <p>Nexus is an internship and on-the-job training management platform that allows organisations to track trainee attendance, manage tasks via a kanban board, monitor OJT progress, and generate reports. The Service includes GPS-verified attendance logging, role-based dashboards, and reporting tools.</p>
         </section>
 
         <section className="legal-section">
           <h2>3. Account Registration</h2>
-          <p>Accounts on OJT Tracker are created exclusively by system administrators. There is no public self-registration. You are responsible for maintaining the confidentiality of your account credentials and for all activities that occur under your account. You must notify your administrator immediately of any unauthorised use.</p>
+          <p>Accounts on Nexus are created either by a system administrator or by signing up directly to create a new organization or join an existing one via invite code. You are responsible for maintaining the confidentiality of your account credentials and for all activities that occur under your account. You must notify your administrator immediately of any unauthorised use.</p>
           <p>Organisations using the Service are responsible for managing their users and ensuring all members comply with these terms.</p>
         </section>
 
@@ -78,14 +78,14 @@ export default function TermsPage() {
 
         <section className="legal-section">
           <h2>7. Intellectual Property</h2>
-          <p>The Service and its original content, features, and functionality are and will remain the exclusive property of OJT Tracker. You may not reproduce, distribute, modify, or create derivative works without express written consent.</p>
-          <p>You retain ownership of all data and content you upload to the Service. By uploading data, you grant OJT Tracker a limited licence to process that data solely to provide the Service.</p>
+          <p>The Service and its original content, features, and functionality are and will remain the exclusive property of Nexus. You may not reproduce, distribute, modify, or create derivative works without express written consent.</p>
+          <p>You retain ownership of all data and content you upload to the Service. By uploading data, you grant Nexus a limited licence to process that data solely to provide the Service.</p>
         </section>
 
         <section className="legal-section">
           <h2>8. Disclaimers and Limitation of Liability</h2>
-          <p>The Service is provided &ldquo;as is&rdquo; and &ldquo;as available&rdquo; without warranties of any kind. OJT Tracker does not warrant that the Service will be uninterrupted, error-free, or free of harmful components.</p>
-          <p>To the fullest extent permitted by law, OJT Tracker shall not be liable for any indirect, incidental, special, consequential, or punitive damages arising from your use of the Service, including but not limited to inaccuracies in attendance records due to GPS errors or connectivity issues.</p>
+          <p>The Service is provided &ldquo;as is&rdquo; and &ldquo;as available&rdquo; without warranties of any kind. Nexus does not warrant that the Service will be uninterrupted, error-free, or free of harmful components.</p>
+          <p>To the fullest extent permitted by law, Nexus shall not be liable for any indirect, incidental, special, consequential, or punitive damages arising from your use of the Service, including but not limited to inaccuracies in attendance records due to GPS errors or connectivity issues.</p>
         </section>
 
         <section className="legal-section">
@@ -111,8 +111,7 @@ export default function TermsPage() {
           <div className="footer-top">
             <div className="footer-brand">
               <div className="footer-brand-logo">
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="#818cf8" strokeWidth={2}><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>
-                <span>OJT&nbsp;<strong>Tracker</strong></span>
+                <span className="nexus-wordmark">Nexus</span>
               </div>
               <p className="footer-tagline">Track training hours. Drive progress.<br />Built for OJT programmes.</p>
             </div>
@@ -129,7 +128,7 @@ export default function TermsPage() {
             </div>
           </div>
           <div className="footer-bottom">
-            <p className="footer-copy">&copy; 2026 OJT Tracker. All rights reserved.</p>
+            <p className="footer-copy">&copy; 2026 Nexus. All rights reserved.</p>
           </div>
         </div>
       </footer>

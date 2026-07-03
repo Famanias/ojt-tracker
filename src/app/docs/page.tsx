@@ -1,9 +1,10 @@
 import Link from 'next/link';
 import '../landing.css';
+import './docs.css';
 
 export const metadata = {
-  title: 'Documentation – OJT Tracker',
-  description: 'Everything you need to know about using OJT Tracker to manage on-the-job training.',
+  title: 'Documentation – Nexus',
+  description: 'Everything you need to know about using Nexus to manage internship and OJT workflows.',
 };
 
 export default function DocsPage() {
@@ -14,8 +15,7 @@ export default function DocsPage() {
       <nav className="docs-nav">
         <div className="docs-nav-inner">
           <Link href="/" className="docs-nav-logo">
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="#4f46e5" strokeWidth={2}><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>
-            <span>OJT&nbsp;<strong>Tracker</strong></span>
+            <span className="nexus-wordmark">Nexus</span>
           </Link>
           <div className="docs-nav-actions">
             <Link href="/" className="btn-back">
@@ -30,8 +30,8 @@ export default function DocsPage() {
       {/* ── Hero ─────────────────────────────────────────────────────────── */}
       <div className="docs-hero">
         <span className="docs-hero-label">Documentation</span>
-        <h1 className="docs-hero-title">OJT Tracker Docs</h1>
-        <p className="docs-hero-sub">Everything you need to know about using OJT Tracker to log, manage, and report on on-the-job training.</p>
+        <h1 className="docs-hero-title">Nexus Docs</h1>
+        <p className="docs-hero-sub">Everything you need to know about using Nexus to log, manage, and report on internship and OJT training.</p>
       </div>
 
       {/* ── Body ─────────────────────────────────────────────────────────── */}
@@ -61,37 +61,37 @@ export default function DocsPage() {
           {/* Overview */}
           <section className="docs-section" id="overview">
             <h2>Overview</h2>
-            <p>OJT Tracker is an on-the-job training management platform that helps organisations track trainee attendance, manage tasks, and report on training progress. The system supports three roles&mdash;Admin, Supervisor, and OJT trainee&mdash;each with tailored dashboards and permissions.</p>
-            <p>With OJT Tracker you can verify daily clock-ins via GPS, organise assignments on a kanban board, monitor hours rendered versus required, and export reports for schools and coordinators.</p>
+            <p>Nexus is an internship and on-the-job training management platform that helps organisations track trainee attendance, manage tasks, and report on training progress. The system supports three roles&mdash;Admin, Supervisor, and OJT trainee&mdash;each with tailored dashboards and permissions.</p>
+            <p>With Nexus you can verify daily clock-ins via GPS, organise assignments on a kanban board, monitor hours rendered versus required, and export reports for schools and coordinators.</p>
             <div className="feature-pills">
-              <span className="feature-pill">&#128336; GPS Clock-in</span>
-              <span className="feature-pill">&#128203; Kanban Tasks</span>
-              <span className="feature-pill">&#128200; Progress Tracking</span>
-              <span className="feature-pill">&#128101; Role-based Access</span>
-              <span className="feature-pill">&#128196; Reports</span>
-              <span className="feature-pill">&#128274; Secure Auth</span>
+              <span className="feature-pill">GPS Clock-in</span>
+              <span className="feature-pill">Kanban Tasks</span>
+              <span className="feature-pill">Progress Tracking</span>
+              <span className="feature-pill">Role-based Access</span>
+              <span className="feature-pill">Reports</span>
+              <span className="feature-pill">Secure Auth</span>
             </div>
           </section>
 
           {/* Getting Started */}
           <section className="docs-section" id="getting-started">
             <h2>Getting Started</h2>
-            <p>Accounts in OJT Tracker are provisioned by the system administrator. There is no public self-registration.</p>
+            <p>Accounts in Nexus are provisioned by the system administrator, or created directly by signing up and starting a new organization. There is no public self-registration into an existing organization without an invite code.</p>
 
             <h3>Logging In</h3>
             <ol className="steps-list">
               <li className="step-item"><span className="step-num">1</span><span className="step-text">Navigate to the <Link href="/login">Login</Link> page.</span></li>
               <li className="step-item"><span className="step-num">2</span><span className="step-text">Enter the email address and password provided by your administrator.</span></li>
-              <li className="step-item"><span className="step-num">3</span><span className="step-text">Click <strong>Sign in</strong> &mdash; you will be taken to the dashboard appropriate for your role.</span></li>
+              <li className="step-item"><span className="step-num">3</span><span className="step-text">Click <strong>Sign In</strong> &mdash; you will be taken to the dashboard appropriate for your role.</span></li>
             </ol>
             <div className="callout callout-tip">
-              <strong>Tip:</strong> If you have forgotten your password, contact your administrator to have it reset.
+              <strong>Tip:</strong> If you have forgotten your password, use the <strong>Forgot password</strong> link on the login page, or contact your administrator.
             </div>
 
             <h3>First-time Admin Setup</h3>
             <p>When an admin logs in for the first time they are taken to the <strong>Admin Dashboard</strong>. From there they can:</p>
             <ul>
-              <li>Create trainee and supervisor accounts via the <strong>Users</strong> panel.</li>
+              <li>Create trainee and supervisor accounts via the <strong>Users</strong> panel, or share an invite code for self-registration.</li>
               <li>Configure the required OJT hours in <strong>Settings</strong>.</li>
               <li>Set up the kanban columns used by trainees.</li>
             </ul>
@@ -100,7 +100,7 @@ export default function DocsPage() {
           {/* User Roles */}
           <section className="docs-section" id="user-roles">
             <h2>User Roles</h2>
-            <p>OJT Tracker uses three roles to control access. Administrators assign roles when creating accounts; roles can be changed at any time from the Admin Users panel.</p>
+            <p>Nexus uses three roles to control access. Administrators assign roles when creating accounts; roles can be changed at any time from the Admin Users panel.</p>
             <div className="role-table-wrap">
               <table className="role-table">
                 <thead>
@@ -258,8 +258,7 @@ export default function DocsPage() {
           <div className="footer-top">
             <div className="footer-brand">
               <div className="footer-brand-logo">
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="#818cf8" strokeWidth={2}><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>
-                <span>OJT&nbsp;<strong>Tracker</strong></span>
+                <span className="nexus-wordmark">Nexus</span>
               </div>
               <p className="footer-tagline">Track training hours. Drive progress.<br />Built for OJT programmes.</p>
             </div>
@@ -276,7 +275,7 @@ export default function DocsPage() {
             </div>
           </div>
           <div className="footer-bottom">
-            <p className="footer-copy">&copy; 2026 OJT Tracker. All rights reserved.</p>
+            <p className="footer-copy">&copy; 2026 Nexus. All rights reserved.</p>
           </div>
         </div>
       </footer>

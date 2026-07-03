@@ -1,9 +1,10 @@
 import Link from 'next/link';
 import '../landing.css';
+import '../legal.css';
 
 export const metadata = {
-  title: 'Privacy Policy – OJT Tracker',
-  description: 'How OJT Tracker collects, uses, and protects your personal information.',
+  title: 'Privacy Policy – Nexus',
+  description: 'How Nexus collects, uses, and protects your personal information.',
 };
 
 export default function PrivacyPage() {
@@ -14,8 +15,7 @@ export default function PrivacyPage() {
       <header className="legal-nav">
         <div className="legal-nav-inner">
           <Link href="/" className="legal-logo">
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="#4f46e5" strokeWidth={2}><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>
-            <span>OJT&nbsp;<strong>Tracker</strong></span>
+            <span className="nexus-wordmark">Nexus</span>
           </Link>
           <Link href="/" className="btn-back">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
@@ -38,7 +38,7 @@ export default function PrivacyPage() {
 
         <section className="legal-section">
           <h2>1. Overview</h2>
-          <p>OJT Tracker (&ldquo;we&rdquo;, &ldquo;our&rdquo;, &ldquo;us&rdquo;) is committed to protecting your personal information. This Privacy Policy explains how we collect, use, store, and protect your data when you use the OJT Tracker platform. By using the Service, you consent to the practices described here.</p>
+          <p>Nexus (&ldquo;we&rdquo;, &ldquo;our&rdquo;, &ldquo;us&rdquo;) is committed to protecting your personal information. This Privacy Policy explains how we collect, use, store, and protect your data when you use the Nexus platform. By using the Service, you consent to the practices described here.</p>
         </section>
 
         <section className="legal-section">
@@ -81,7 +81,7 @@ export default function PrivacyPage() {
 
         <section className="legal-section">
           <h2>5. GPS and Location Data</h2>
-          <p>OJT Tracker requests access to your device&apos;s location solely for the purpose of verifying on-site presence at clock-in and clock-out. Location data is stored only at the time of each attendance event and is not tracked continuously. You can revoke location permissions in your browser settings, though this will prevent clock-in functionality from working.</p>
+          <p>Nexus requests access to your device&apos;s location solely for the purpose of verifying on-site presence at clock-in and clock-out. Location data is stored only at the time of each attendance event and is not tracked continuously. You can revoke location permissions in your browser settings, though this will prevent clock-in functionality from working.</p>
         </section>
 
         <section className="legal-section">
@@ -108,7 +108,7 @@ export default function PrivacyPage() {
 
         <section className="legal-section">
           <h2>9. Third-party Services</h2>
-          <p>OJT Tracker may use third-party services for hosting and infrastructure including Supabase for database and authentication services. These providers are bound by their own privacy policies and we ensure they meet adequate data protection standards.</p>
+          <p>Nexus may use third-party services for hosting and infrastructure including Supabase for database and authentication services. These providers are bound by their own privacy policies and we ensure they meet adequate data protection standards.</p>
         </section>
 
         <section className="legal-section">
@@ -129,8 +129,7 @@ export default function PrivacyPage() {
           <div className="footer-top">
             <div className="footer-brand">
               <div className="footer-brand-logo">
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="#818cf8" strokeWidth={2}><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>
-                <span>OJT&nbsp;<strong>Tracker</strong></span>
+                <span className="nexus-wordmark">Nexus</span>
               </div>
               <p className="footer-tagline">Track training hours. Drive progress.<br />Built for OJT programmes.</p>
             </div>
@@ -147,7 +146,7 @@ export default function PrivacyPage() {
             </div>
           </div>
           <div className="footer-bottom">
-            <p className="footer-copy">&copy; 2026 OJT Tracker. All rights reserved.</p>
+            <p className="footer-copy">&copy; 2026 Nexus. All rights reserved.</p>
           </div>
         </div>
       </footer>
