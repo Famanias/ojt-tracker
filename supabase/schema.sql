@@ -552,3 +552,51 @@ drop policy if exists "Users can update their own avatar" on storage.objects;
 create policy "Users can update their own avatar"
   on storage.objects for update to authenticated
   using (bucket_id = 'avatars' and auth.uid()::text = (storage.foldername(name))[1]);
+
+-- ============================================================
+-- INVITATIONS TABLE & POLICIES
+-- ============================================================
+create table if not exists invitations (
+  id uuid primary key default uuid_generate_v4(),
+  organization_id uuid not null references organizations(id) on delete cascade,
+  email text not null,
+  role user_role not null default 'ojt',
+  invited_by uuid references profiles(id) on delete set null,
+  token text unique not null,
+  status text not null default 'pending' check (status in ('pending', 'accepted', 'expired', 'revoked')),
+  expires_at timestamptz not null,
+  accepted_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+-- Index for single pending invitation per email per organization
+create unique index if not exists unique_pending_invitation on invitations (email, organization_id) where (status = 'pending');
+
+-- Enable RLS
+alter table invitations enable row level security;
+
+-- RLS policies:
+-- Admins can view invitations in their organization
+drop policy if exists "Admins can view invitations in their organization" on invitations;
+create policy "Admins can view invitations in their organization" on invitations
+  for select using (
+    organization_id = get_my_org_id()
+    and exists (select 1 from profiles where id = auth.uid() and role = 'admin')
+  );
+
+-- Admins can create invitations in their organization
+drop policy if exists "Admins can create invitations in their organization" on invitations;
+create policy "Admins can create invitations in their organization" on invitations
+  for insert with check (
+    organization_id = get_my_org_id()
+    and exists (select 1 from profiles where id = auth.uid() and role = 'admin')
+  );
+
+-- Admins can update/revoke invitations in their organization
+drop policy if exists "Admins can update invitations in their organization" on invitations;
+create policy "Admins can update invitations in their organization" on invitations
+  for update using (
+    organization_id = get_my_org_id()
+    and exists (select 1 from profiles where id = auth.uid() and role = 'admin')
+  );
+

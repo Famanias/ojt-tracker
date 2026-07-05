@@ -1,267 +1,434 @@
-Implementation Plan - Google OAuth Authentication with Supabase
+Implementation Plan: Replace "Add User" with Email Invitation System
+Feature Overview
 
-This plan outlines the implementation of Google OAuth authentication using Supabase Auth in the OJT Tracker application. It preserves the existing email/password authentication flow while seamlessly handling OAuth login, automatic profile provisioning, and multi-tenant organization onboarding.
+Replace the current "Add User" functionality with an Invitation System.
 
-The implementation follows a clear separation of responsibilities:
+Instead of administrators directly creating users by entering an email, administrators will send an invitation email. The invited user can then create or link their account and automatically join the organization upon accepting the invitation.
 
-Supabase Auth authenticates the user.
-Database triggers provision the user profile.
-OAuth callback restores the authenticated session and routes the user appropriately.
-Onboarding flow handles organization creation or joining.
-Shared service functions contain all organization business logic to avoid code duplication.
-User Review Required
+This introduces two supported methods for joining an organization:
 
-[!IMPORTANT]
+Join via Invite Code (existing)
+Join via Email Invitation (new)
 
-1. Update the handle_new_user() Database Trigger
+The invitation system should integrate cleanly with the existing Supabase authentication architecture and organization management flow.
 
-The existing handle_new_user() trigger currently overwrites fields such as role and org_id whenever an OAuth login occurs because Google does not provide those values.
+Objectives
+Remove direct user creation from the Admin panel.
+Allow admins to invite users via email (as either OJT, Supervisor or Administrator).
+Automatically associate invited users with the correct organization after accepting the invitation.
+Prevent duplicate invitations.
+Support invitations for both existing and new users.
+Maintain Row-Level Security (RLS) and organization isolation.
 
-Update the trigger so that it:
+Phase 1 — Analyze Existing User Management
+Goal
 
-Creates a profile only if one does not already exist.
-Updates only safe profile fields (full_name, email, avatar_url) on subsequent logins.
-Preserves:
-role
-org_id
-organization membership
-permissions
-Populate avatar_url using either:
-avatar_url
-picture
+Understand how users are currently added to an organization.
 
-Create a proper Supabase SQL migration instead of modifying production SQL manually.
+Review
+Current "Add User" modal/page
+User Management components
+Organization membership logic
+Profile creation flow
+Existing Invite Code implementation
+Current Supabase Auth flow
+Existing database schema
+Deliverables
+Document current user creation flow
+Identify reusable organization assignment logic
+Identify reusable validation logic
 
-2. Introduce an Onboarding Flow
+Phase 2 — Database Design
+Goal
 
-Because Nexus is multi-tenant, authenticated users must belong to an organization before accessing the dashboard.
+Introduce an invitation system.
 
-Users who authenticate with Google but have no associated organization should be redirected to /onboarding, where they can:
+Create Invitations Table
 
-Create an organization
-Join an organization using an invite code
+Example fields:
 
-Business operations such as organization creation and joining should not occur inside the OAuth callback.
+Field	Description
+id	UUID
+organization_id	Organization
+email	Invited email
+role	Assigned role
+invited_by	Admin user ID
+token	Secure unique token
+status	pending / accepted / expired / revoked
+expires_at	Expiration timestamp
+accepted_at	Timestamp
+created_at	Timestamp
 
-3. Activate Middleware
 
-The current authentication middleware located in src/proxy.ts is not active because Next.js expects middleware.ts.
-
-Create src/middleware.ts that delegates to proxy.ts so that:
-
-sessions restore correctly
-cookies refresh automatically
-protected routes continue functioning after OAuth login
-Proposed Changes
-Database
-[MODIFY] supabase/schema.sql
-
-Update handle_new_user():
-
-Preserve existing role
-Preserve existing org_id
-Preserve organization membership
-Populate Google avatar
-Update only non-sensitive profile fields
-
-Create a proper migration for the trigger update.
-
-The trigger should remain the single source of truth for automatic profile provisioning. The application should not duplicate profile creation logic.
-
-Shared Business Services
-[NEW OR REFACTOR]
-
-Extract organization operations into reusable service functions.
-
-Examples include:
-
-createOrganization()
-joinOrganization()
-initializeOrganization()
-generateDefaultKanbanColumns()
-generateOrganizationSettings()
-
-Both the normal registration flow and OAuth onboarding should reuse these services.
-
-Avoid duplicating organization creation logic across multiple routes.
-
-Authentication UI
-[MODIFY] LoginForm.tsx
-Add Continue with Google
-Preserve existing email/password flow
-Read the next parameter
-Pass the intended destination through OAuth
-Display OAuth errors returned from the callback
-Show loading state while redirecting
-[MODIFY] RegisterForm.tsx
-
-Keep the existing registration UI.
-
-If the user begins registration using Google:
-
-Preserve registration intent
-Preserve organization creation intent
-Preserve invite code
-
-Do not rely on URL query parameters for sensitive or editable data.
-
-Instead, use a temporary authenticated mechanism (such as OAuth state, secure cookies, or another server-controlled mechanism) whenever practical.
-
-Avoid exposing organization names or invite codes directly in browser history.
-
-OAuth Callback
-[NEW] src/app/auth/callback/route.ts
-
-The callback should remain lightweight.
-
-Responsibilities:
-
-Exchange authorization code for a Supabase session.
-Restore the authenticated user.
-Verify the authenticated profile exists.
-The database trigger should already have created it.
-If the profile is unexpectedly missing, treat it as an error rather than recreating it.
-If the profile has no org_id, redirect to /onboarding.
-Otherwise:
-redirect to the original destination (next)
-or the user's dashboard
-
-Handle:
-
-cancelled authentication
-expired codes
-invalid callbacks
-authentication failures
-
-Do not:
-
-create organizations
-join organizations
-generate Kanban boards
-generate settings
-assign roles
-
-Those belong to onboarding.
-
-Middleware
-[NEW] src/middleware.ts
-
-Delegate to proxy.ts.
+Requirements
+One pending invitation per email per organization
+Unique invitation token
+Expiration support
+Invitation status tracking
+RLS Policies
 
 Ensure:
 
-session restoration
-cookie refresh
-protected routes
-authenticated redirects
+Admins can create invitations
+Admins can view invitations within their organization
+Admins can revoke invitations
+Invited users can only consume their own invitation
+Organizations remain isolated
 
-continue working for both email/password and OAuth users.
 
-Dashboard Protection
-[MODIFY] dashboard/layout.tsx
+Phase 3 — Invitation Service Layer
+Goal
 
-Verify:
+Create reusable invitation logic.
 
-authenticated session
-valid profile
-organization membership
+New Service Functions
 
-If org_id is null:
+Example:
 
-Redirect to /onboarding.
+createInvitation()
 
-Onboarding
-[NEW] /onboarding
+getInvitation()
 
-Authenticated users without an organization should be redirected here.
+validateInvitation()
 
-The page allows users to:
+acceptInvitation()
 
-Create Organization
-Join Organization
+revokeInvitation()
 
-All operations should call the shared organization service layer rather than implementing business logic directly inside the page.
+resendInvitation()
 
-[NEW] api/onboarding
+listInvitations()
 
-The onboarding endpoint should:
+Responsibilities include:
 
-Create Organization
-Create organization
-Assign administrator role
-Initialize workspace
-Create default settings
-Generate default Kanban columns
+Generate secure token
+Prevent duplicates
+Validate expiration
+Validate organization
+Update invitation status
 
-using the shared services.
+Phase 4 — Email Delivery
+Goal
 
-Join Organization
-Validate invite code
+Automatically send invitation emails.
+
+Flow
+
+Admin clicks:
+
+Invite User
+
+↓
+
+Create invitation record
+
+↓
+
+Generate secure token
+
+↓
+
+Send email
+
+↓
+
+User receives email
+
+↓
+
+Clicks invitation link
+
+↓
+
+Redirect to signup/login
+
+↓
+
+Joins organization
+
+Email Content
+
+Include:
+
+Organization name
+Assigned role
+Expiration date
+Accept Invitation button
+Fallback URL
+Invitation URL
+
+Example:
+
+/invite/{token}
+
+or
+
+/accept-invite?token=...
+Phase 5 — Invitation Acceptance Flow
+Goal
+
+Create invitation onboarding.
+
+Route
+/invite/[token]
+
+Responsibilities:
+
+Validate token
+Check expiration
+Check status
+Display organization details
+Prompt login/signup
+Existing User
+
+If already authenticated:
+
+Validate email
+
+↓
+
 Join organization
-Assign OJT role
 
-using the same shared services used by normal registration.
+↓
 
-[NEW] OnboardingClient.tsx
+Update profile
 
-Build a polished onboarding experience using the project's design system.
+↓
 
-Features:
+Mark invitation accepted
 
-Create Organization
-Join with Invite Code
-Invite code validation
-Loading states
-Error handling
-Success feedback
-Sign Out button
-Security
+↓
 
-Follow Supabase OAuth best practices.
+Redirect to dashboard
+New User
+Signup
 
-Never trust client-supplied identity data.
-Use the authenticated Supabase session as the source of truth.
-Avoid manually storing OAuth tokens.
-Preserve existing RLS policies.
-Preserve organization permissions.
-Preserve user roles.
-Keep authentication provider-agnostic for future providers (GitHub, Microsoft, Apple).
-Verification Plan
-Automated
-Run database migration.
-Verify trigger compiles successfully.
-Run project build.
-Ensure TypeScript passes.
-Ensure middleware activates correctly.
-Manual
-Authentication
-New Google user signs in successfully.
-Existing Google user signs in successfully.
-Existing email/password user continues to work.
-Logout works correctly.
-Session restoration works correctly.
-Organization Flow
-Google user without an organization is redirected to onboarding.
-Creating an organization initializes the workspace correctly.
-Joining an organization via invite code succeeds.
-Dashboard becomes accessible immediately afterward.
-Existing Users
+↓
 
-Verify an existing email/password account can authenticate using the same Google email without:
+Email verification (if enabled)
 
-creating duplicate profiles
-losing organization membership
-losing roles
-resetting permissions
+↓
 
-If account linking behavior requires additional configuration, document and implement it according to Supabase's recommended identity-linking approach.
+Complete profile
 
-Regression Testing
+↓
+
+Join organization
+
+↓
+
+Redirect
+
+
+Phase 6 — Admin User Interface
+Replace
+
+Current
+
+Add User
+
+with
+
+Invite User
+New Invite Modal
+
+Fields:
+
+Email
+Role
+Send Invitation
+
+Optional:
+
+Personal message
+Validation
+Valid email
+Existing pending invitation
+Existing organization member
+
+
+Phase 7 — Invitation Management
+Add the invited users in the user Management, label the status as "Pending Invite"
+
+
+Example:
+
+User	Role	Department	Required Hours	Joined	Status	Actions
+John Lynard Isip haratayo@gmail.com OJT IT	600h	Jul 02, 2026 Pending Invite Resend/Revoke
+
+if the user is pending invitation, that means the actions column is different: Resend/Revoke instead of Edit/Deactivate
+
+Once the user accepts invitation, the status will become active, and the actions will become Edit/Deactivate just like existing users.
+
+Phase 8 — Signup Integration
+Update Authentication Flow
+
+Current:
+
+Signup
+
+↓
+
+Create profile
+
+New:
+
+Signup
+
+↓
+
+Check invitation token
+
+↓
+
+If valid:
+
+Assign organization
+
+Assign role
+
+Accept invitation
+
+↓
+
+Create profile
+
+↓
+
+Dashboard
+Existing Login Flow
+Login
+
+↓
+
+Invitation detected
+
+↓
+
+Validate email
+
+↓
+
+Join organization
+
+↓
+
+Dashboard
+
+Phase 9 — Security
+Requirements
+Tokens
+Cryptographically secure
+Non-guessable
+Single use
+Expirable
+Validation
 
 Verify:
 
-Existing registration flow remains unchanged.
-Existing login flow remains unchanged.
-Existing RLS policies continue to function.
-Existing organization permissions remain intact.
-Existing dashboards behave identically for both email/password and Google-authenticated users.
+Invitation exists
+Token matches
+Status == pending
+Not expired
+Email matches authenticated user
+Organization exists
+Prevent
+Invitation reuse
+Cross-organization access
+Email mismatch
+Duplicate organization membership
+Manual token manipulation
+Phase 10 — UX Improvements
+Admin
+
+Success message
+
+Invitation sent successfully.
+Invitee
+
+Friendly invitation page showing:
+
+Organization name
+Assigned role
+Invited by
+Expiration
+Error States
+
+Handle:
+
+Invitation expired
+Invitation revoked
+Already accepted
+Invalid token
+Wrong email account
+Phase 11 — Notifications (DO NOT DO THIS PHASE 11 YET! )
+
+Optional improvements:
+
+Invitation sent confirmation
+Invitation accepted notification
+Invitation expired notification
+Invitation revoked notification
+
+Phase 12 — Testing (DO NOT DO THIS PHASE 12 YET! I WILL TEST YOUR OUTPUT MYSELF!)
+Functional Tests
+Admin
+Send invitation
+Duplicate invitation prevention
+Revoke invitation
+Resend invitation
+Invitee
+Accept invitation
+Signup via invitation
+Login via invitation
+Expired invitation
+Revoked invitation
+Invalid token
+Already accepted
+Security
+Token tampering
+Wrong authenticated email
+Organization isolation
+RLS verification
+Duplicate membership prevention
+User Flow
+Admin
+│
+├── Invite User
+│
+├── Enter Email + Role
+│
+├── Invitation Record Created
+│
+├── Email Sent
+│
+└──────────────► Invitee
+
+Invitee
+│
+├── Click Invitation Link
+│
+├── Validate Token
+│
+├── Login or Sign Up
+│
+├── Email Matches Invitation
+│
+├── Organization Membership Created
+│
+├── Invitation Marked Accepted
+│
+└── Redirect to Dashboard
+
+
+
+Expected Outcome
+
+After implementation, the User Management module will support a more secure and scalable onboarding workflow:
+
+Invite Code: Users can still join an organization using a valid invite code.
+Email Invitation: Administrators can invite users directly by email, with secure, single-use invitation links.
+Automatic Organization Assignment: Accepted invitations automatically associate users with the correct organization and role.
+Centralized Invitation Management: Administrators can track pending invitations, resend or revoke them, and monitor their status.
+Improved Security: Email ownership verification, expiring tokens, single-use invitations, and RLS policies ensure organization boundaries remain protected.
+Better User Experience: New and existing users have a seamless onboarding flow without requiring administrators to create accounts on their behalf.

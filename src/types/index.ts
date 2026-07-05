@@ -136,3 +136,20 @@ export interface LocationState {
   error: string | null;
   loading: boolean;
 }
+
+export interface Invitation {
+  id: string;
+  organization_id: string;
+  email: string;
+  role: UserRole;
+  invited_by?: string;
+  token: string;
+  status: 'pending' | 'accepted' | 'expired' | 'revoked';
+  expires_at: string;
+  accepted_at?: string;
+  created_at: string;
+  // joined
+  organization?: Organization;
+  invited_by_profile?: Profile;
+}
+

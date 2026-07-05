@@ -48,11 +48,44 @@ export default function RegisterForm() {
   const errorParam = searchParams.get('error');
   const supabase = createClient();
 
+  // Invite Token state
+  const inviteToken = searchParams.get('invite_token');
+  const [inviteTokenValid, setInviteTokenValid] = useState<boolean | null>(null);
+  const [inviteTokenDetails, setInviteTokenDetails] = useState<{ email: string; orgName: string; role: string } | null>(null);
+  const [verifyingInviteToken, setVerifyingInviteToken] = useState(false);
+
   React.useEffect(() => {
     if (errorParam) {
       setError(errorParam);
     }
   }, [errorParam]);
+
+  React.useEffect(() => {
+    if (!inviteToken) return;
+
+    const verifyToken = async () => {
+      setVerifyingInviteToken(true);
+      try {
+        const res = await fetch(`/api/invitations/verify?token=${encodeURIComponent(inviteToken)}`);
+        const json = await res.json();
+        if (json.valid) {
+          setInviteTokenValid(true);
+          setInviteTokenDetails(json);
+          setEmail(json.email);
+        } else {
+          setInviteTokenValid(false);
+          setError(json.error ?? 'Invalid or expired invitation link.');
+        }
+      } catch {
+        setInviteTokenValid(false);
+        setError('Failed to verify the invitation link.');
+      } finally {
+        setVerifyingInviteToken(false);
+      }
+    };
+
+    verifyToken();
+  }, [inviteToken]);
 
   const verifyInviteCode = async (code: string) => {
     const trimmed = code.trim().toUpperCase();
@@ -99,9 +132,14 @@ export default function RegisterForm() {
       )}; path=/; max-age=600; SameSite=Lax; Secure`;
     }
 
+    const redirectToUrl = new URL('/auth/callback', window.location.origin);
+    if (inviteToken) {
+      redirectToUrl.searchParams.set('next', `/invite/${inviteToken}`);
+    }
+
     const { error: oAuthError } = await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: `${window.location.origin}/auth/callback` },
+      options: { redirectTo: redirectToUrl.toString() },
     });
 
     if (oAuthError) {
@@ -124,21 +162,33 @@ export default function RegisterForm() {
       setError('Password must be at least 8 characters.');
       return;
     }
-    if (tab === 0 && !orgName.trim()) {
-      setError('Please enter an organization name.');
-      return;
-    }
-    if (tab === 1 && (!inviteCode.trim() || !inviteValid?.valid)) {
-      setError('Please enter a valid invite code.');
-      return;
+
+    if (inviteToken) {
+      if (!inviteTokenValid || !inviteTokenDetails) {
+        setError('Cannot register: invitation is invalid or expired.');
+        return;
+      }
+    } else {
+      if (tab === 0 && !orgName.trim()) {
+        setError('Please enter an organization name.');
+        return;
+      }
+      if (tab === 1 && (!inviteCode.trim() || !inviteValid?.valid)) {
+        setError('Please enter a valid invite code.');
+        return;
+      }
     }
 
     setLoading(true);
 
-    const payload =
-      tab === 0
-        ? { action: 'create', orgName: orgName.trim(), fullName, email, password }
-        : { action: 'join', inviteCode: inviteCode.trim().toUpperCase(), fullName, email, password };
+    let payload;
+    if (inviteToken) {
+      payload = { action: 'accept_invite', inviteToken, fullName, password };
+    } else if (tab === 0) {
+      payload = { action: 'create', orgName: orgName.trim(), fullName, email, password };
+    } else {
+      payload = { action: 'join', inviteCode: inviteCode.trim().toUpperCase(), fullName, email, password };
+    }
 
     const res = await fetch('/api/organizations', {
       method: 'POST',
@@ -154,8 +204,9 @@ export default function RegisterForm() {
     }
 
     // Sign in immediately after account creation
+    const signInEmail = (inviteToken && inviteTokenDetails) ? inviteTokenDetails.email : email;
     const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-      email: email.trim(),
+      email: signInEmail.trim(),
       password,
     });
 
@@ -182,11 +233,18 @@ export default function RegisterForm() {
           </Alert>
         )}
 
+        {verifyingInviteToken && (
+          <Box sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+            <CircularProgress size={16} />
+            <Typography variant="caption">Verifying invitation details...</Typography>
+          </Box>
+        )}
+
         <Stack spacing={1.5} sx={{ mb: 1 }}>
           <SocialButton
             icon={googleLoading ? <CircularProgress size={20} color="inherit" /> : <GoogleIcon />}
             onClick={handleGoogleSignIn}
-            disabled={googleLoading || loading}
+            disabled={googleLoading || loading || verifyingInviteToken}
           >
             {googleLoading ? 'Redirecting to Google...' : 'Continue with Google'}
           </SocialButton>
@@ -194,20 +252,32 @@ export default function RegisterForm() {
 
         <AuthDivider label="Or continue with email" />
 
-        {/* Organization: create vs join — required by the platform's
-            multi-tenant model, kept alongside the requested field layout */}
-        <Tabs
-          value={tab}
-          onChange={handleTabChange}
-          variant="fullWidth"
-          sx={{ mb: 2.5, borderBottom: 1, borderColor: 'divider' }}
-        >
-          <Tab label="Create Organization" sx={{ textTransform: 'none', fontWeight: 600 }} />
-          <Tab label="Join with Code" sx={{ textTransform: 'none', fontWeight: 600 }} />
-        </Tabs>
+        {inviteToken ? (
+          <Box sx={{ mb: 2.5, p: 2, bgcolor: '#f0fdf4', borderRadius: 3, border: '1px solid #bbf7d0', display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <CheckIcon color="success" />
+            <Box>
+              <Typography variant="body2" fontWeight={600} color="#166534">
+                Accepting Invitation
+              </Typography>
+              <Typography variant="caption" color="#15803d">
+                Joining <strong>{inviteTokenDetails?.orgName ?? 'loading...'}</strong> as a <strong>{inviteTokenDetails?.role.toUpperCase() ?? 'loading...'}</strong>.
+              </Typography>
+            </Box>
+          </Box>
+        ) : (
+          <Tabs
+            value={tab}
+            onChange={handleTabChange}
+            variant="fullWidth"
+            sx={{ mb: 2.5, borderBottom: 1, borderColor: 'divider' }}
+          >
+            <Tab label="Create Organization" sx={{ textTransform: 'none', fontWeight: 600 }} />
+            <Tab label="Join with Code" sx={{ textTransform: 'none', fontWeight: 600 }} />
+          </Tabs>
+        )}
 
         <Box component="form" onSubmit={handleSubmit}>
-          {tab === 0 && (
+          {!inviteToken && tab === 0 && (
             <InputField
               label="Organization Name"
               value={orgName}
@@ -223,7 +293,7 @@ export default function RegisterForm() {
             />
           )}
 
-          {tab === 1 && (
+          {!inviteToken && tab === 1 && (
             <>
               <InputField
                 label="Invite Code"
@@ -298,6 +368,7 @@ export default function RegisterForm() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
+            disabled={!!inviteToken}
           />
 
           <PasswordField
