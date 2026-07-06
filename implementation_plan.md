@@ -1,523 +1,477 @@
-Overall Architecture
+Goal
 
-Current
+Transform the Kanban board from:
 
-Drag Card
-      ↓
-React State Updated
-      ↓
-UI Looks Correct
-      ↓
-Refresh
-      ↓
-Everything Resets
-
-Target
-
-Drag Card
-      ↓
-Optimistic UI Update
-      ↓
-Background API Call
-      ↓
-Database Updated
-      ↓
-Done
-
-Refresh
-      ↓
-Correct Order Loaded
-
-The user should never wait for the database.
-
-Phase 1 — Backend APIs
-
-Instead of many APIs, create only two.
-
-PATCH /api/kanban/reorder/tasks
-
-PATCH /api/kanban/reorder/columns
-
-These endpoints exist ONLY for ordering.
-
-Do NOT reuse edit task.
-
-Keep them dedicated.
-
-Phase 2 — Reordering Columns
-
-Your table already has
-
-kanban_columns
-
-id
-title
-position
-
-Dragging
-
-Todo
+To-do
 Doing
-Review
 Done
 
-to
+into
 
-Doing
-Todo
-Review
+Backlog
+Ideas
+Ready
+To-do
+In Progress
+Blocked
+Code Review
+Testing
 Done
+Archived
 
-should update
+where admins/supervisors can create, edit, delete, and reorder columns.
 
-Doing -> position 0
-Todo -> position 1
-Review -> position 2
-Done -> position 3
+Phase 1 — Remove Hardcoded Columns
 
-The frontend should send
+Currently, somewhere in the frontend, there is likely something similar to:
 
-[
-  {
-    id,
-    position
-  }
+const columns = [
+    "To-do",
+    "Doing",
+    "Done"
 ]
+
+or
+
+<Column title="To-do" />
+<Column title="Doing" />
+<Column title="Done" />
+
+Everything should instead be driven from the database.
+
+The board should render:
+
+GET columns
+
+↓
+
+ORDER BY position
+
+↓
+
+Render dynamically
+
+There should never again be hardcoded columns in the UI.
+
+Phase 2 — Add "Create Column"
+
+Add a button at the end of the Kanban board.
+
++ Add Column
+
+Clicking it opens a small modal.
 
 Example
 
-[
-  {
-    "id":"column-a",
-    "position":0
-  },
-  {
-    "id":"column-b",
-    "position":1
-  },
-  {
-    "id":"column-c",
-    "position":2
-  }
-]
+---------------------
+Create Column
+
+Title
+
+[____________]
+
+Color
+
+🟣 Purple
+
+[Cancel] [Create]
+---------------------
+
+Only title should be required.
+
+Color can default to your existing purple.
+
+Phase 3 — Determine New Position
+
+When creating a column,
+
+don't ask the user where to place it.
+
+Simply append it.
+
+Example
+
+Current
+
+0 To-do
+
+1 Doing
+
+2 Done
+
+New
+
+Backlog
+
+Database
+
+Backlog
+
+position = 3
+
+Simply
+
+SELECT MAX(position)
+
++1
+
+No reordering needed.
+
+Phase 4 — API
+
+Create one endpoint
+
+POST
+
+/api/kanban/columns
+
+Payload
+
+{
+    "title":"Testing",
+    "color":"#3b82f6"
+}
 
 Backend
 
-Loop
+find highest position
 
-update column
-set position = ?
-where id = ?
+↓
 
-Since there are usually fewer than 10 columns, this is very fast.
+insert column
 
-Phase 3 — Reordering Tasks Inside Same Column
+↓
+
+return new column
+
+The frontend immediately appends it.
+
+Phase 5 — Optimistic UI
+
+Don't wait.
+
+Flow
+
+Create
+
+↓
+
+Temporary column appears
+
+↓
+
+API request
+
+↓
+
+Replace temp ID
+
+↓
+
+Done
+
+The board should feel instant.
+
+Phase 6 — Editing Columns
+
+Allow clicking
+
+⋮
+
+on every column.
+
+Menu
+
+Rename
+
+Change Color
+
+Delete
+
+Rename modal
+
+Title
+
+[In Progress]
+
+Save
+
+Simple PATCH request.
+
+Phase 7 — Delete Column
+
+Deleting is the only complex part.
+
+Never allow deleting if tasks exist without asking.
+
+Instead show
+
+Delete "Testing"
+
+This column has
+
+15 tasks.
+
+Move them to
+
+▼ Done
+
+[Delete]
+
+or
+
+Archive all tasks
+
+or
+
+Cancel
+
+Never silently delete tasks.
+
+Phase 8 — Delete API
+DELETE
+
+/api/kanban/columns/:id
+
+Payload
+
+{
+    "moveTasksTo":"done-column-id"
+}
+
+Backend
+
+move tasks
+
+↓
+
+delete column
+
+↓
+
+recalculate positions
+
+↓
+
+return success
+Phase 9 — Empty Columns
+
+Support empty columns.
+
+Example
+
+Testing
+
+-----------------
+
+Drop tasks here
+
+No placeholder tasks.
+
+Phase 10 — Maximum Columns
+
+Don't limit it.
+
+Allow
+
+4
+
+8
+
+20
+
+50
+
+The board should simply become horizontally scrollable.
+
+Phase 11 — Horizontal Scrolling
+
+Instead of wrapping,
+
+use
+
+-------------------------------------------------------------
+
+To-do
+
+Doing
+
+Review
+
+Testing
+
+Done
+
++ Add Column
+
+-------------------------------------------------------------
+
+Scrollable horizontally.
+
+This is the standard Kanban experience.
+
+Phase 12 — Column Width
+
+Give every column a fixed width.
+
+Example
+
+320px
+
+instead of
+
+width: auto
+
+Otherwise the layout constantly shifts.
+
+Phase 13 — Default Columns
+
+When a new organization is created,
+
+instead of hardcoding
+
+To-do
+
+Doing
+
+Done
+
+inside the frontend,
+
+the backend should create them.
+
+Organization Created
+
+↓
+
+Insert
+
+To-do
+
+Doing
+
+Done
+
+with
+
+position
+
+0
+
+1
+
+2
+
+That already aligns with how your organization setup currently works.
+
+Phase 14 — Drag-and-Drop Integration
+
+Since columns already have
+
+position
+
+the new columns automatically participate in drag-and-drop.
 
 Example
 
 Before
 
-Todo
-
-0 Task A
-1 Task B
-2 Task C
-3 Task D
-
-Move
-
-Task D
-
-to index 1
-
-Result
-
-Task A
-Task D
-Task B
-Task C
-
-Database should become
-
-Task A position 0
-
-Task D position 1
-
-Task B position 2
-
-Task C position 3
-
-Don't only update Task D.
-
-Update every affected task.
-
-This guarantees
-
-0
-1
-2
-3
-
-No gaps.
-
-No duplicates.
-
-Phase 4 — Moving Between Columns
-
-Example
-
-Todo
-
-Task A
-Task B
-Task C
+To-do
 
 Doing
 
-Task D
-Task E
+Done
 
-Move
-
-Task B
-
-↓
-
-Doing
-
-Result
-
-Todo
-
-Task A
-Task C
-
-Doing
-
-Task D
-Task B
-Task E
-
-Database must update BOTH columns.
-
-Todo
-
-Task A
-
-position 0
-
-Task C
-
-position 1
-
-Doing
-
-Task D
-
-position 0
-
-Task B
-
-position 1
-
-Task E
-
-position 2
-
-Also update
-
-Task B
-
-column_id = Doing
-
-This is the most common bug people miss.
-
-Phase 5 — API Payload
-
-Instead of sending one task,
-
-send only the affected tasks.
-
-Example
-
-{
-    "tasks":[
-        {
-            "id":"1",
-            "column_id":"todo",
-            "position":0
-        },
-        {
-            "id":"2",
-            "column_id":"todo",
-            "position":1
-        },
-        {
-            "id":"3",
-            "column_id":"doing",
-            "position":0
-        }
-    ]
-}
-
-Backend
-
-for task
-
-update
-
-column_id
-position
-
-One request.
-
-Many updates.
-
-Phase 6 — Optimistic Updates
-
-Do NOT wait for Supabase.
-
-Flow
+Testing
 
 Drag
 
-↓
+Testing
 
-Immediately update React state
+between
 
-↓
+Doing
 
-User sees movement instantly
+Done
 
-↓
+Database
 
-Send PATCH request
+To-do
 
-↓
+0
 
-Success
+Doing
 
-nothing happens
+1
 
-↓
+Testing
 
-Failure
+2
 
-rollback previous state
+Done
 
-This makes the board feel instant.
+3
 
-Phase 7 — Loading the Board
+Nothing special required.
 
-When fetching columns
+Phase 15 — Permissions
 
-Always
+Only
 
-order by position asc
+Admin
 
-When fetching tasks
+Supervisor
 
-Always
+should be able to
 
-order by position asc
+Create columns
+Rename columns
+Delete columns
+Reorder columns
 
-Never rely on creation date.
+OJTs should only be able to view the board and interact with tasks according to your existing permissions.
 
-Phase 8 — Database Transaction
+Phase 16 — UI Improvements
 
-If using PostgreSQL directly,
+Every column header should contain:
 
-all updates should happen inside one transaction.
+Title
 
-BEGIN
+Task Count
 
-update
+Color Indicator
 
-update
-
-update
-
-COMMIT
-
-Not
-
-update
-
-update
-
-update
-
-Otherwise one failed update leaves inconsistent positions.
-
-Since you're using Supabase, the cleanest approach is to expose a PostgreSQL RPC function that performs the reorder inside a single transaction rather than issuing multiple client-side updates.
-
-Phase 9 — Performance
-
-Do not do this
-
-drag
-
-↓
-
-20 API requests
-
-Do
-
-drag
-
-↓
-
-1 API request
-
-↓
-
-contains every changed task
+⋮ Menu
 
 Example
 
-PATCH
+🟣
 
-tasks
+Testing
 
-[
-...
-...
-...
-]
+(14)
 
-One network call.
+⋮
 
-Phase 10 — React Query / SWR
+The task count updates automatically based on the tasks currently in that column.
 
-If you're using React Query
+Phase 17 — Future-Proofing
 
-optimistically update cache
+This implementation will make future features straightforward:
 
-↓
-
-mutation
-
-↓
-
-invalidate kanban query
-
-If using plain React
-
-setColumns()
-
-↓
-
-PATCH
-
-↓
-
-done
-Phase 11 — Race Conditions
-
-Suppose
-
-Admin A
-
-and
-
-Admin B
-
-drag simultaneously.
-
-Always trust the database.
-
-After every successful reorder,
-
-reload
-
-columns
-
-tasks
-
-or invalidate the cache.
-
-That guarantees everyone eventually sees the same order.
-
-Phase 12 — Future-Proofing
-
-If you later implement real-time collaboration using Supabase Realtime, this architecture still works:
-
-Admin A drags
-
-↓
-
-Database updated
-
-↓
-
-Realtime event
-
-↓
-
-Admin B receives update
-
-↓
-
-Board automatically reorders
-
-No redesign required.
-
-Suggested Project Structure
-lib/
-    services/
-        kanban.ts
-            reorderTasks()
-            reorderColumns()
-
-app/
-    api/
-        kanban/
-            reorder/
-                tasks/
-                    route.ts
-                columns/
-                    route.ts
-Database Changes Needed
-
-None are strictly required. Your schema already has the necessary fields:
-
-kanban_columns.position for column ordering.
-kanban_tasks.position for ordering tasks within a column.
-kanban_tasks.column_id for moving tasks between columns.
-
-I would only add indexes to make ordering queries more efficient as your data grows:
-
-create index if not exists idx_kanban_columns_org_position
-on kanban_columns(org_id, position);
-
-create index if not exists idx_kanban_tasks_column_position
-on kanban_tasks(column_id, position);
-
-create index if not exists idx_kanban_tasks_org_column_position
-on kanban_tasks(org_id, column_id, position);
-
-These indexes match your most common query pattern (WHERE org_id/column_id ... ORDER BY position) and will keep board loading and reordering fast.
-
-Implementation Order
-
-I would tackle the work in this order to minimize bugs and keep each milestone testable:
-
-Column drag persistence
-Create PATCH /api/kanban/reorder/columns.
-Update all position values after a column drag.
-Load columns ordered by position.
-Task reorder within the same column
-Create PATCH /api/kanban/reorder/tasks.
-Recalculate positions for every affected task in that column.
-Persist in a single request.
-Task moves across columns
-Update the task's column_id.
-Recalculate positions in both the source and destination columns.
-Persist all affected rows in one request.
-Optimistic UI
-Update local state immediately.
-Send the reorder request in the background.
-Roll back only if the request fails.
-Transactional persistence
-Move the reorder logic into a PostgreSQL RPC function so all updates succeed or fail together.
-Refresh or invalidate the Kanban query after success.
+✅ Unlimited custom workflows
+✅ Organization-specific Kanban boards
+✅ Drag-and-drop column ordering
+✅ Custom colors
+✅ Column icons (future)
+✅ WIP limits (future)
+✅ Collapsible columns (future)
+✅ Per-column automation (future)
+✅ Default column templates for new organizations (future)
+Recommended Implementation Order
+Replace hardcoded columns with database-driven rendering.
+Implement "Create Column" (POST /api/kanban/columns) and append new columns to the end.
+Allow renaming and color changes (PATCH /api/kanban/columns/:id).
+Implement column deletion with task reassignment or archiving safeguards.
+Integrate with the column drag-and-drop persistence by updating position values.
+Polish the UI with horizontal scrolling, fixed-width columns, task counts, and contextual menus.

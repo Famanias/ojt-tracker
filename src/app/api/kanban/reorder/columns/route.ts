@@ -11,15 +11,15 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized: login required.' }, { status: 401 });
     }
 
-    // Check user profile for supervisor/admin authorization
+    // Check user profile for organization association
     const { data: profile } = await supabase
       .from('profiles')
-      .select('role')
+      .select('org_id')
       .eq('id', user.id)
       .single();
 
-    if (!profile || (profile.role !== 'admin' && profile.role !== 'supervisor')) {
-      return NextResponse.json({ error: 'Forbidden: columns can only be reordered by admins or supervisors.' }, { status: 403 });
+    if (!profile || !profile.org_id) {
+      return NextResponse.json({ error: 'Forbidden: user has no organization.' }, { status: 403 });
     }
 
     const body = await request.json();

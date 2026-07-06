@@ -289,10 +289,10 @@ create policy "Org members can view kanban columns" on kanban_columns
   for select using (org_id = get_my_org_id());
 drop policy if exists "Supervisors/Admins can manage columns" on kanban_columns;
 drop policy if exists "Supervisors and admins can manage kanban columns" on kanban_columns;
-create policy "Supervisors and admins can manage kanban columns" on kanban_columns
+drop policy if exists "Org members can manage kanban columns" on kanban_columns;
+create policy "Org members can manage kanban columns" on kanban_columns
   for all using (
     org_id = get_my_org_id()
-    and exists (select 1 from profiles where id = auth.uid() and role in ('supervisor', 'admin'))
   );
 
 -- Kanban tasks policies
@@ -661,11 +661,6 @@ begin
     raise exception 'Unauthorized: user has no organization';
   end if;
 
-  -- Only admins and supervisors can reorder columns
-  if user_role = 'ojt' then
-    raise exception 'Forbidden: OJTs cannot reorder columns';
-  end if;
-
   for col in select * from jsonb_to_recordset(payload) as x(id uuid, position int) loop
     update kanban_columns
     set position = col.position
@@ -729,6 +724,66 @@ begin
     update kanban_tasks
     set column_id = tsk.column_id, position = tsk.position
     where id = tsk.id;
+  end loop;
+end;
+$$ language plpgsql security definer;
+
+-- RPC for deleting kanban columns and reassigning/archiving tasks
+create or replace function delete_kanban_column(
+  column_to_delete uuid,
+  move_tasks_to uuid
+)
+returns void as $$
+declare
+  user_org_id uuid;
+  user_role public.user_role;
+  col record;
+  i int := 0;
+begin
+  -- Get caller's organization ID and role
+  select org_id, role into user_org_id, user_role from profiles where id = auth.uid();
+  
+  if user_org_id is null then
+    raise exception 'Unauthorized: user has no organization';
+  end if;
+
+  -- Verify column_to_delete belongs to user's org
+  if not exists (
+    select 1 from kanban_columns where id = column_to_delete and org_id = user_org_id
+  ) then
+    raise exception 'Forbidden: column not found or does not belong to your organization';
+  end if;
+
+  -- Move tasks or archive tasks
+  if move_tasks_to is not null then
+    -- Verify target column belongs to user's org
+    if not exists (
+      select 1 from kanban_columns where id = move_tasks_to and org_id = user_org_id
+    ) then
+      raise exception 'Forbidden: destination column not found or does not belong to your organization';
+    end if;
+
+    -- Update tasks column_id
+    update kanban_tasks
+    set column_id = move_tasks_to
+    where column_id = column_to_delete;
+  else
+    -- Archive all tasks in this column
+    update kanban_tasks
+    set archived_at = now(), archived_by = auth.uid()
+    where column_id = column_to_delete;
+  end if;
+
+  -- Delete the column
+  delete from kanban_columns
+  where id = column_to_delete;
+
+  -- Recalculate positions of remaining columns
+  for col in select id from kanban_columns where org_id = user_org_id order by position asc loop
+    update kanban_columns
+    set position = i
+    where id = col.id;
+    i := i + 1;
   end loop;
 end;
 $$ language plpgsql security definer;

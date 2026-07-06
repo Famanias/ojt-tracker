@@ -76,6 +76,26 @@ The direct "Add User" creation feature has been replaced with a secure, token-ba
   - Sends a single PATCH request containing all affected columns or tasks, and quietly triggers a background reload (`fetchBoard(true)`) upon success.
   - Gracefully rolls back the UI to the pre-drag state if the API request fails, or if a user drops a card outside of a valid column boundary.
 
+### 6. Kanban Column Customization and Dynamic Expansion
+- **[NEW] Column Deletion Migration [20260706010000_kanban_delete_column.sql](file:///D:/repos/ojt-tracker/supabase/migrations/20260706010000_kanban_delete_column.sql):**
+  - Defines the `delete_kanban_column` PostgreSQL RPC function. It updates task column assignments to a chosen destination or archives them, deletes the column row, and resequences all column positions in a single transaction (open to all organization member roles).
+- **[NEW] Column RLS Policy Migration [20260706020000_kanban_columns_rls.sql](file:///D:/repos/ojt-tracker/supabase/migrations/20260706020000_kanban_columns_rls.sql):**
+  - Drops the restrictive supervisor/admin only policy and implements an organization-wide RLS write policy allowing all organization members to create, edit, or delete columns within their organization.
+- **[MODIFY] Main Schema [schema.sql](file:///D:/repos/ojt-tracker/supabase/schema.sql):**
+  - Appended the `delete_kanban_column` RPC function definition and updated RLS policy `Org members can manage kanban columns` on `kanban_columns`.
+- **[NEW] Column API Routes:**
+  - `POST /api/kanban/columns` in [route.ts](file:///D:/repos/ojt-tracker/src/app/api/kanban/columns/route.ts): Accepts `title` and `color`, computes the next sequential column position in the organization, and creates the column. Permitted for any user inside the organization.
+  - `PATCH /api/kanban/columns/[id]` in [route.ts](file:///D:/repos/ojt-tracker/src/app/api/kanban/columns/[id]/route.ts): Handles renaming and coloring updates for any organization member.
+  - `DELETE /api/kanban/columns/[id]` in [route.ts](file:///D:/repos/ojt-tracker/src/app/api/kanban/columns/[id]/route.ts): Receives `moveTasksTo` and calls the transactional `delete_kanban_column` RPC for any organization member.
+- **[MODIFY] Column Dialog Component [ColumnDialog.tsx](file:///D:/repos/ojt-tracker/src/components/kanban/ColumnDialog.tsx):**
+  - Delegates persistence callbacks to the parent `KanbanBoard` to enable seamless optimistic UI state management.
+- **[MODIFY] Kanban Board [KanbanBoard.tsx](file:///D:/repos/ojt-tracker/src/components/kanban/KanbanBoard.tsx):**
+  - Implements `handleSaveColumn` to perform optimistic UI updates during creation and editing of columns, rolling back to original state on request failure.
+  - Redesigns the column deletion confirmation dialog to present options to either archive the column's tasks or move them to another column.
+  - Adds a premium "+ Add Column" card at the end of the horizontally scrollable board (now visible and clickable for all roles who belong to an organization).
+- **[MODIFY] Column Width [KanbanColumn.tsx](file:///D:/repos/ojt-tracker/src/components/kanban/KanbanColumn.tsx):**
+  - Updated individual column width constraints to `320px` to match modern standard boards and maintain consistent horizontal grid alignment. Column headers and dragging attributes are now active for all member roles via `canManageColumns` prop.
+
 ---
 
 ## 🚦 Verification Results
@@ -84,3 +104,5 @@ The direct "Add User" creation feature has been replaced with a secure, token-ba
    - Ran `npx tsc --noEmit` locally. The check completed successfully with zero compiler errors across the workspace.
 2. **Database Schema Sanity:**
    - Database tables, constraints, partial indexes, and RLS policies are prepared and match standard PostgreSQL/Supabase configuration schemas.
+3. **Drag-and-Drop Reliability:**
+   - Validated that optimistic UI updates correctly reflect the database state following successful API transactions, and that rollback logic triggers correctly on network error scenarios.
