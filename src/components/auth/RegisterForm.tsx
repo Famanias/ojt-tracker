@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Box, Alert, Stack, Typography, Tabs, Tab, Chip,
   InputAdornment, CircularProgress,
@@ -29,6 +29,27 @@ interface InviteVerifyResult {
   orgName?: string;
 }
 
+type StrengthLabel = '' | 'Weak' | 'Medium' | 'Strong';
+
+interface PasswordStrength {
+  label: StrengthLabel;
+  color: string;
+  score: number; // 0-3, number of criteria met
+}
+
+function getPasswordStrength(password: string): PasswordStrength {
+  if (!password) return { label: '', color: '', score: 0 };
+
+  let score = 0;
+  if (password.length >= 8) score++;
+  if (/[0-9]/.test(password)) score++;
+  if (/[^A-Za-z0-9]/.test(password)) score++;
+
+  if (score <= 1) return { label: 'Weak', color: '#dc2626', score };
+  if (score === 2) return { label: 'Medium', color: '#d97706', score };
+  return { label: 'Strong', color: '#16a34a', score };
+}
+
 export default function RegisterForm() {
   const [tab, setTab] = useState<0 | 1>(0); // 0 = create org, 1 = join org
   const [firstName, setFirstName] = useState('');
@@ -53,6 +74,8 @@ export default function RegisterForm() {
   const [inviteTokenValid, setInviteTokenValid] = useState<boolean | null>(null);
   const [inviteTokenDetails, setInviteTokenDetails] = useState<{ email: string; orgName: string; role: string } | null>(null);
   const [verifyingInviteToken, setVerifyingInviteToken] = useState(false);
+
+  const passwordStrength = useMemo(() => getPasswordStrength(password), [password]);
 
   React.useEffect(() => {
     if (errorParam) {
@@ -160,6 +183,14 @@ export default function RegisterForm() {
     }
     if (password.length < 8) {
       setError('Password must be at least 8 characters.');
+      return;
+    }
+    if (!/[0-9]/.test(password)) {
+      setError('Password must contain at least one number.');
+      return;
+    }
+    if (!/[^A-Za-z0-9]/.test(password)) {
+      setError('Password must contain at least one special character.');
       return;
     }
 
@@ -347,7 +378,7 @@ export default function RegisterForm() {
           )}
 
           {/* First / Last name — side-by-side on desktop */}
-          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2.5}>
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2.5} sx={{ mb: 2.5 }}>
             <InputField
               label="First Name"
               value={firstName}
@@ -368,7 +399,10 @@ export default function RegisterForm() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
-            disabled={!!inviteToken}
+            sx={{ mb: 2.5 }}
+            InputProps={{
+              readOnly: !!inviteToken,
+            }}
           />
 
           <PasswordField
@@ -376,8 +410,30 @@ export default function RegisterForm() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
-            helperText="At least 8 characters."
+            helperText="At least 8 characters, with a number and a special character."
           />
+
+          {password && (
+            <Box sx={{ mt: 1, mb: 2.5 }}>
+              <Box sx={{ display: 'flex', gap: 0.5, mb: 0.5 }}>
+                {[0, 1, 2].map((i) => (
+                  <Box
+                    key={i}
+                    sx={{
+                      height: 4,
+                      flex: 1,
+                      borderRadius: 2,
+                      bgcolor: i < passwordStrength.score ? passwordStrength.color : '#e5e7eb',
+                      transition: 'background-color 0.2s ease',
+                    }}
+                  />
+                ))}
+              </Box>
+              <Typography variant="caption" sx={{ color: passwordStrength.color, fontWeight: 600 }}>
+                {passwordStrength.label} password
+              </Typography>
+            </Box>
+          )}
 
           <PasswordField
             label="Confirm Password"

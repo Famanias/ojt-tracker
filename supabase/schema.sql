@@ -600,3 +600,36 @@ create policy "Admins can update invitations in their organization" on invitatio
     and exists (select 1 from profiles where id = auth.uid() and role = 'admin')
   );
 
+-- ============================================================
+-- NOTIFICATIONS TABLE & POLICIES
+-- ============================================================
+create table if not exists notifications (
+  id uuid primary key default uuid_generate_v4(),
+  org_id uuid not null references organizations(id) on delete cascade,
+  user_id uuid not null references profiles(id) on delete cascade,
+  title text not null,
+  message text not null,
+  type text not null,
+  is_read boolean not null default false,
+  created_at timestamptz not null default now()
+);
+
+-- Enable RLS
+alter table notifications enable row level security;
+
+-- RLS Policy: Users can view their own notifications
+drop policy if exists "Users can view their own notifications" on notifications;
+create policy "Users can view their own notifications" on notifications
+  for select using (user_id = auth.uid());
+
+-- RLS Policy: Users can update their own notifications (e.g. mark as read)
+drop policy if exists "Users can update their own notifications" on notifications;
+create policy "Users can update their own notifications" on notifications
+  for update using (user_id = auth.uid());
+
+-- RLS Policy: Allow insertion of notifications by authenticated users
+drop policy if exists "Allow insertion of notifications" on notifications;
+create policy "Allow insertion of notifications" on notifications
+  for insert with check (true);
+
+

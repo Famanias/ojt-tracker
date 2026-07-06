@@ -1,434 +1,324 @@
-Implementation Plan: Replace "Add User" with Email Invitation System
-Feature Overview
+Phase 11 — Email Delivery with Resend
+Goal
 
-Replace the current "Add User" functionality with an Invitation System.
-
-Instead of administrators directly creating users by entering an email, administrators will send an invitation email. The invited user can then create or link their account and automatically join the organization upon accepting the invitation.
-
-This introduces two supported methods for joining an organization:
-
-Join via Invite Code (existing)
-Join via Email Invitation (new)
-
-The invitation system should integrate cleanly with the existing Supabase authentication architecture and organization management flow.
+Replace the current mock email implementation with a production-ready email delivery system using Resend. When an administrator invites a user, Nexus should automatically send a professionally designed invitation email containing a secure, single-use invitation link. The system should also support resending invitations and handle email delivery failures gracefully.
 
 Objectives
-Remove direct user creation from the Admin panel.
-Allow admins to invite users via email (as either OJT, Supervisor or Administrator).
-Automatically associate invited users with the correct organization after accepting the invitation.
-Prevent duplicate invitations.
-Support invitations for both existing and new users.
-Maintain Row-Level Security (RLS) and organization isolation.
-
-Phase 1 — Analyze Existing User Management
+Integrate Resend as the email delivery provider.
+Replace console-based mock emails with actual email sending.
+Deliver branded HTML invitation emails.
+Support invitation resending.
+Handle email delivery failures without affecting invitation creation.
+Securely manage API keys using environment variables.
+Keep email sending abstracted behind a reusable service.
+Phase 11.1 — Configure Resend
 Goal
 
-Understand how users are currently added to an organization.
+Set up Resend for the Nexus application.
 
-Review
-Current "Add User" modal/page
-User Management components
-Organization membership logic
-Profile creation flow
-Existing Invite Code implementation
-Current Supabase Auth flow
-Existing database schema
-Deliverables
-Document current user creation flow
-Identify reusable organization assignment logic
-Identify reusable validation logic
-
-Phase 2 — Database Design
-Goal
-
-Introduce an invitation system.
-
-Create Invitations Table
-
-Example fields:
-
-Field	Description
-id	UUID
-organization_id	Organization
-email	Invited email
-role	Assigned role
-invited_by	Admin user ID
-token	Secure unique token
-status	pending / accepted / expired / revoked
-expires_at	Expiration timestamp
-accepted_at	Timestamp
-created_at	Timestamp
-
-
-Requirements
-One pending invitation per email per organization
-Unique invitation token
-Expiration support
-Invitation status tracking
-RLS Policies
-
-Ensure:
-
-Admins can create invitations
-Admins can view invitations within their organization
-Admins can revoke invitations
-Invited users can only consume their own invitation
-Organizations remain isolated
-
-
-Phase 3 — Invitation Service Layer
-Goal
-
-Create reusable invitation logic.
-
-New Service Functions
+Tasks
+Create a Resend account.
+Verify the sending domain (or use the testing domain during development).
+Generate a Resend API Key.
+Store the API key securely in environment variables.
 
 Example:
 
-createInvitation()
-
-getInvitation()
-
-validateInvitation()
-
-acceptInvitation()
-
-revokeInvitation()
-
-resendInvitation()
-
-listInvitations()
-
-Responsibilities include:
-
-Generate secure token
-Prevent duplicates
-Validate expiration
-Validate organization
-Update invitation status
-
-Phase 4 — Email Delivery
+RESEND_API_KEY=...
+NEXT_PUBLIC_APP_URL=https://nexus.example.com
+EMAIL_FROM=Nexus <noreply@nexus.example.com>
+Deliverables
+Working Resend account.
+Verified sender identity.
+Environment variables configured for development and production.
+Phase 11.2 — Install Dependencies
 Goal
 
-Automatically send invitation emails.
+Install the required packages for email delivery.
+
+Tasks
+
+Install:
+
+resend
+@react-email/components
+react-email (optional for previewing templates)
+Deliverables
+Email dependencies added to the project.
+Build compiles successfully.
+Phase 11.3 — Create Email Service
+Goal
+
+Abstract all email functionality into a dedicated service layer.
+
+New Service
+src/lib/services/email.ts
+Responsibilities
+Initialize the Resend client.
+Send invitation emails.
+Send reminder emails (future).
+Send notification emails (future).
+Centralize email error handling.
+Example Functions
+sendInvitationEmail()
+
+sendInvitationReminder()
+
+sendInvitationAcceptedNotification()
+
+sendInvitationExpiredNotification()
+Design Principles
+API routes should never communicate with Resend directly.
+All email operations should pass through the email service.
+Future notification types can reuse the same service.
+Phase 11.4 — Create Email Templates
+Goal
+
+Build reusable, branded email templates using React Email.
+
+Directory Structure
+src/emails/
+
+InvitationEmail.tsx
+
+InvitationReminder.tsx
+
+InvitationAccepted.tsx
+Invitation Email
+
+The email should include:
+
+Nexus logo
+Organization name
+Inviter's name
+Assigned role
+Invitation expiration date
+Accept Invitation button
+Fallback invitation URL
+Support contact information
+Security notice indicating that the invitation is intended only for the recipient
+Styling
+
+Maintain the Nexus design language:
+
+Clean layout
+Responsive design
+Mobile-friendly
+Accessible typography
+Brand colors
+Professional appearance
+Phase 11.5 — Integrate Email Sending into Invitation Creation
+Goal
+
+Automatically send an email whenever an invitation is created.
+
+Current Flow
+Admin
+
+↓
+
+Create Invitation
+
+↓
+
+Return Invite URL
+New Flow
+Admin
+
+↓
+
+Create Invitation Record
+
+↓
+
+Generate Secure Token
+
+↓
+
+Generate Invitation URL
+
+↓
+
+Send Email via Resend
+
+↓
+
+Return Success Response
+Requirements
+Email sending occurs only after the invitation record has been successfully created.
+Invitation creation should remain independent from email delivery.
+If email delivery fails, the invitation should still exist and be recoverable.
+Phase 11.6 — Implement Resend Invitation
+Goal
+
+Replace the existing mock email implementation.
+
+Existing Behavior
+Create invitation
+
+↓
+
+console.log(invitationLink)
+New Behavior
+Create invitation
+
+↓
+
+sendInvitationEmail()
+
+↓
+
+Email delivered to recipient
+
+The email service should receive:
+
+Recipient email
+Organization name
+Assigned role
+Inviter name
+Invitation URL
+Expiration date
+Phase 11.7 — Handle Email Delivery Errors
+Goal
+
+Ensure failed email delivery does not compromise invitation integrity.
+
+Error Scenarios
+Invalid API key
+Network timeout
+Resend service unavailable
+Invalid recipient email
+Domain verification issues
+System Behavior
+
+If email delivery fails:
+
+Keep the invitation in Pending status.
+Log the failure.
+Return an informative response to the administrator.
+Allow the invitation to be resent later.
+
+Example administrator message:
+
+Invitation created successfully, but the email could not be delivered. Please try resending the invitation.
+
+Phase 11.8 — Implement Resend Invitation Action
+Goal
+
+Allow administrators to resend pending invitations.
 
 Flow
-
-Admin clicks:
-
-Invite User
+Admin
 
 ↓
 
-Create invitation record
+Click Resend
 
 ↓
 
-Generate secure token
+Generate New Token
 
 ↓
 
-Send email
+Update Expiration
 
 ↓
 
-User receives email
+Send Email Again
 
 ↓
 
-Clicks invitation link
-
-↓
-
-Redirect to signup/login
-
-↓
-
-Joins organization
-
-Email Content
-
-Include:
-
-Organization name
-Assigned role
-Expiration date
-Accept Invitation button
-Fallback URL
-Invitation URL
-
-Example:
-
-/invite/{token}
-
-or
-
-/accept-invite?token=...
-Phase 5 — Invitation Acceptance Flow
+Success Message
+Requirements
+Previous invitation link becomes invalid.
+Generate a fresh secure token.
+Reset expiration date.
+Prevent resending accepted, revoked, or expired invitations unless explicitly renewed.
+Phase 11.9 — Improve Administrator Feedback
 Goal
 
-Create invitation onboarding.
+Provide clear feedback regarding email delivery.
 
-Route
-/invite/[token]
+Successful Delivery
 
-Responsibilities:
-
-Validate token
-Check expiration
-Check status
-Display organization details
-Prompt login/signup
-Existing User
-
-If already authenticated:
-
-Validate email
-
-↓
-
-Join organization
-
-↓
-
-Update profile
-
-↓
-
-Mark invitation accepted
-
-↓
-
-Redirect to dashboard
-New User
-Signup
-
-↓
-
-Email verification (if enabled)
-
-↓
-
-Complete profile
-
-↓
-
-Join organization
-
-↓
-
-Redirect
-
-
-Phase 6 — Admin User Interface
-Replace
-
-Current
-
-Add User
-
-with
-
-Invite User
-New Invite Modal
-
-Fields:
-
-Email
-Role
-Send Invitation
-
-Optional:
-
-Personal message
-Validation
-Valid email
-Existing pending invitation
-Existing organization member
-
-
-Phase 7 — Invitation Management
-Add the invited users in the user Management, label the status as "Pending Invite"
-
-
-Example:
-
-User	Role	Department	Required Hours	Joined	Status	Actions
-John Lynard Isip haratayo@gmail.com OJT IT	600h	Jul 02, 2026 Pending Invite Resend/Revoke
-
-if the user is pending invitation, that means the actions column is different: Resend/Revoke instead of Edit/Deactivate
-
-Once the user accepts invitation, the status will become active, and the actions will become Edit/Deactivate just like existing users.
-
-Phase 8 — Signup Integration
-Update Authentication Flow
-
-Current:
-
-Signup
-
-↓
-
-Create profile
-
-New:
-
-Signup
-
-↓
-
-Check invitation token
-
-↓
-
-If valid:
-
-Assign organization
-
-Assign role
-
-Accept invitation
-
-↓
-
-Create profile
-
-↓
-
-Dashboard
-Existing Login Flow
-Login
-
-↓
-
-Invitation detected
-
-↓
-
-Validate email
-
-↓
-
-Join organization
-
-↓
-
-Dashboard
-
-Phase 9 — Security
-Requirements
-Tokens
-Cryptographically secure
-Non-guessable
-Single use
-Expirable
-Validation
-
-Verify:
-
-Invitation exists
-Token matches
-Status == pending
-Not expired
-Email matches authenticated user
-Organization exists
-Prevent
-Invitation reuse
-Cross-organization access
-Email mismatch
-Duplicate organization membership
-Manual token manipulation
-Phase 10 — UX Improvements
-Admin
-
-Success message
+Display:
 
 Invitation sent successfully.
-Invitee
 
-Friendly invitation page showing:
+Delivery Failure
 
-Organization name
-Assigned role
-Invited by
-Expiration
-Error States
+Display:
 
-Handle:
+Invitation created, but email delivery failed.
 
-Invitation expired
-Invitation revoked
-Already accepted
-Invalid token
-Wrong email account
-Phase 11 — Notifications (DO NOT DO THIS PHASE 11 YET! )
+Resend Success
 
-Optional improvements:
+Display:
 
-Invitation sent confirmation
-Invitation accepted notification
-Invitation expired notification
-Invitation revoked notification
+Invitation resent successfully.
 
-Phase 12 — Testing (DO NOT DO THIS PHASE 12 YET! I WILL TEST YOUR OUTPUT MYSELF!)
+Loading States
+
+During email delivery:
+
+Disable the submit button.
+Display progress indicator.
+Prevent duplicate submissions.
+Phase 11.10 — Logging and Monitoring
+Goal
+
+Provide visibility into email delivery for debugging and maintenance.
+
+Log Events
+Invitation created
+Email successfully sent
+Email failed
+Invitation resent
+Resend failure
+Recommended Logged Data
+Invitation ID
+Recipient email
+Organization ID
+Administrator ID
+Timestamp
+Delivery status
+Resend message ID (if available)
+Future Enhancement
+
+Persist email delivery metadata in a dedicated audit log or notification history table for troubleshooting and reporting.
+
+Phase 11.11 — Security Considerations
+Requirements
+Never expose the Resend API key to the client.
+Send emails exclusively from server-side code.
+Do not embed sensitive information in email URLs beyond the invitation token.
+Ensure invitation links remain single-use and expire after the configured duration.
+Validate invitation ownership before allowing acceptance.
+Use HTTPS for all generated invitation URLs.
+Phase 11.12 — Testing
 Functional Tests
-Admin
-Send invitation
-Duplicate invitation prevention
-Revoke invitation
-Resend invitation
-Invitee
-Accept invitation
-Signup via invitation
-Login via invitation
-Expired invitation
-Revoked invitation
-Invalid token
-Already accepted
-Security
-Token tampering
-Wrong authenticated email
-Organization isolation
-RLS verification
-Duplicate membership prevention
-User Flow
-Admin
-│
-├── Invite User
-│
-├── Enter Email + Role
-│
-├── Invitation Record Created
-│
-├── Email Sent
-│
-└──────────────► Invitee
-
-Invitee
-│
-├── Click Invitation Link
-│
-├── Validate Token
-│
-├── Login or Sign Up
-│
-├── Email Matches Invitation
-│
-├── Organization Membership Created
-│
-├── Invitation Marked Accepted
-│
-└── Redirect to Dashboard
-
-
-
+Invitation Creation
+Email is delivered after invitation creation.
+Email contains the correct invitation link.
+Email contains the correct organization and role.
+Invitation Acceptance
+Accept Invitation button opens the correct page.
+Invitation token is valid.
+User joins the correct organization.
+Resend
+New email contains a new token.
+Previous token is invalid.
+Expiration date is refreshed.
+Failure Testing
+Invalid API key.
+Network interruption.
+Unverified sender domain.
+Invalid recipient email.
+Resend API outage.
+User Experience
+Responsive email layout.
+Email renders correctly in Gmail, Outlook, Apple Mail, and major mobile email clients.
+Dark mode compatibility (where supported).
 Expected Outcome
 
-After implementation, the User Management module will support a more secure and scalable onboarding workflow:
-
-Invite Code: Users can still join an organization using a valid invite code.
-Email Invitation: Administrators can invite users directly by email, with secure, single-use invitation links.
-Automatic Organization Assignment: Accepted invitations automatically associate users with the correct organization and role.
-Centralized Invitation Management: Administrators can track pending invitations, resend or revoke them, and monitor their status.
-Improved Security: Email ownership verification, expiring tokens, single-use invitations, and RLS policies ensure organization boundaries remain protected.
-Better User Experience: New and existing users have a seamless onboarding flow without requiring administrators to create accounts on their behalf.
+After this phase is complete, Nexus will use Resend to deliver real invitation emails instead of logging invitation links to the console. Administrators will be able to invite users through professionally branded emails, resend pending invitations when needed, and receive clear feedback on delivery status. The email delivery system will be modular, secure, and reusable, providing a foundation for future transactional emails such as password resets, attendance summaries, task notifications, and system announcements.

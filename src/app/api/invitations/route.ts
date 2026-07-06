@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient as createSupabaseAdmin } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/server';
 import { createInvitation, listInvitations } from '@/lib/services/invitation';
+import { sendInvitationEmail } from '@/lib/services/email';
 
 function getAdminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -56,7 +57,7 @@ export async function POST(request: NextRequest) {
 
     const supabaseAdmin = getAdminClient();
 
-    // 1. Get organization name to show in the mock email
+    // 1. Get organization name and admin name to show in the email
     const { data: org } = await supabaseAdmin
       .from('organizations')
       .select('name')
@@ -64,6 +65,13 @@ export async function POST(request: NextRequest) {
       .single();
 
     const orgName = org?.name || 'Nexus Organization';
+
+    const { data: inviterProfile } = await supabaseAdmin
+      .from('profiles')
+      .select('full_name')
+      .eq('id', admin.id)
+      .single();
+    const inviterName = inviterProfile?.full_name || 'An Administrator';
 
     // 2. Create the invitation
     const invitation = await createInvitation(supabaseAdmin, {
@@ -73,17 +81,27 @@ export async function POST(request: NextRequest) {
       invitedBy: admin.id,
     });
 
-    // 3. Mock email delivery
+    // 3. Send the email via Resend (falls back to console if no API key)
     const origin = request.nextUrl.origin;
     const inviteUrl = `${origin}/invite/${invitation.token}`;
-    console.log('\n============================================================');
-    console.log('[MOCK EMAIL DELIVERY]');
-    console.log(`To: ${email}`);
-    console.log(`Subject: Invitation to join ${orgName}`);
-    console.log(`Role: ${role.toUpperCase()}`);
-    console.log(`Accept Invitation Link: ${inviteUrl}`);
-    console.log(`Expires At: ${new Date(invitation.expires_at).toLocaleString()}`);
-    console.log('============================================================\n');
+    const expiresAtStr = new Date(invitation.expires_at).toLocaleString();
+
+    const emailResult = await sendInvitationEmail({
+      email,
+      orgName,
+      role,
+      inviterName,
+      inviteUrl,
+      expiresAt: expiresAtStr,
+    });
+
+    if (!emailResult.success) {
+      return NextResponse.json({
+        success: true,
+        invitation,
+        warning: 'Invitation created successfully, but the email could not be delivered. Please try resending the invitation.'
+      });
+    }
 
     return NextResponse.json({ success: true, invitation });
   } catch (err: unknown) {

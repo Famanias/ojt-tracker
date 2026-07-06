@@ -36,7 +36,22 @@ The direct "Add User" creation feature has been replaced with a secure, token-ba
 - **[MODIFY] Login & Session Callbacks:**
   - [LoginForm.tsx](file:///D:/repos/ojt-tracker/src/components/auth/LoginForm.tsx) now respects and forwards search parameters for custom redirects after sign in.
   - [route.ts](file:///D:/repos/ojt-tracker/src/app/auth/callback/route.ts) callback bypasses the standard `/onboarding` redirect if a user does not have an organization but is following a `/invite/` link, allowing OAuth sign-ups/in to complete onboarding.
-  - [proxy.ts](file:///D:/repos/ojt-tracker/src/proxy.ts) proxy configured to exclude `/invite/` paths from standard authentication redirection, allowing anonymous invitation verification.
+  - [proxy.ts](file:///D:/repos/ojt-tracker/src/proxy.ts) and [middleware.ts](file:///D:/repos/ojt-tracker/src/middleware.ts) middleware configured to exclude `/invite/` paths from standard authentication redirection, allowing anonymous invitation verification.
+
+### 4. Email Delivery with Resend (Phase 11)
+- **[NEW] Email Template [InvitationEmail.tsx](file:///D:/repos/ojt-tracker/src/emails/InvitationEmail.tsx):**
+  - Designed a premium, responsive email template using React Email components containing the Nexus logo, organization details, role, inviter name, secure accept buttons, and expiration text.
+- **[NEW] Email Service [email.ts](file:///D:/repos/ojt-tracker/src/lib/services/email.ts):**
+  - Created a modular wrapper service for Resend API.
+  - Implemented automatic developer logging fallback so that the application operates locally without crashing even if the API key is not configured.
+- **[MODIFY] API Route `/api/invitations` in [route.ts](file:///D:/repos/ojt-tracker/src/app/api/invitations/route.ts):**
+  - Integrated `sendInvitationEmail` into the invitation creation process.
+  - Returns a warning message in the response if email sending fails, keeping the DB record valid.
+- **[MODIFY] API Route `/api/invitations/[id]` in [route.ts](file:///D:/repos/ojt-tracker/src/app/api/invitations/[id]/route.ts):**
+  - Integrated `sendInvitationEmail` into the resending process, generating new tokens and renewing expirations.
+- **[MODIFY] Admin UI Dashboard [UsersClient.tsx](file:///D:/repos/ojt-tracker/src/app/dashboard/admin/users/UsersClient.tsx):**
+  - Updated action handlers to show alert warning messages to the administrator if the email delivery fails but the invitation is created successfully.
+
 
 ---
 
@@ -45,4 +60,4 @@ The direct "Add User" creation feature has been replaced with a secure, token-ba
 1. **TypeScript Type Safety:**
    - Ran `npx tsc --noEmit` locally. The check completed successfully with zero compiler errors across the workspace.
 2. **Database Schema Sanity:**
-   - Database tables, constraints, partial indexes, and RLS policies are prepared and matches standard PostgreSQL/Supabase configuration schemas.
+   - Database tables, constraints, partial indexes, and RLS policies are prepared and match standard PostgreSQL/Supabase configuration schemas.

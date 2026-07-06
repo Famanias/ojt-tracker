@@ -80,6 +80,19 @@ export async function createInvitation(
     throw new Error(insertError?.message ?? 'Failed to create invitation record.');
   }
 
+  try {
+    const { createNotification } = await import('./notification');
+    await createNotification(supabaseAdmin, {
+      orgId,
+      userId: invitedBy,
+      title: 'Invitation Sent',
+      message: `An invitation has been sent to ${normalizedEmail} as an ${role.toUpperCase()}.`,
+      type: 'invitation_sent',
+    });
+  } catch (err) {
+    console.error('Failed to create invitation_sent notification:', err);
+  }
+
   return invitation as Invitation;
 }
 
@@ -118,6 +131,17 @@ export async function validateInvitation(
       .from('invitations')
       .update({ status: 'expired' })
       .eq('id', invitation.id);
+
+    try {
+      const { notifyAdmins } = await import('./notification');
+      await notifyAdmins(supabaseAdmin, invitation.organization_id, {
+        title: 'Invitation Expired',
+        message: `Invitation sent to ${invitation.email} has expired.`,
+        type: 'invitation_expired',
+      });
+    } catch (err) {
+      console.error('Failed to notify admins about expiration:', err);
+    }
 
     return { valid: false, error: 'This invitation has expired.' };
   }
@@ -185,6 +209,17 @@ export async function acceptInvitation(
     throw new Error(`Failed to update invitation status: ${updateInviteError?.message}`);
   }
 
+  try {
+    const { notifyAdmins } = await import('./notification');
+    await notifyAdmins(supabaseAdmin, invite.organization_id, {
+      title: 'Invitation Accepted',
+      message: `${invite.email} accepted the invitation and joined as an ${invite.role.toUpperCase()}.`,
+      type: 'invitation_accepted',
+    });
+  } catch (err) {
+    console.error('Failed to notify admins about acceptance:', err);
+  }
+
   return updatedInvite as Invitation;
 }
 
@@ -193,6 +228,16 @@ export async function revokeInvitation(
   invitationId: string,
   orgId: string
 ): Promise<void> {
+  // 1. Fetch invitation email for notification
+  const { data: invite } = await supabaseAdmin
+    .from('invitations')
+    .select('email')
+    .eq('id', invitationId)
+    .eq('organization_id', orgId)
+    .single();
+
+  const email = invite?.email || 'User';
+
   const { error } = await supabaseAdmin
     .from('invitations')
     .update({ status: 'revoked' })
@@ -201,6 +246,18 @@ export async function revokeInvitation(
 
   if (error) {
     throw new Error(`Failed to revoke invitation: ${error.message}`);
+  }
+
+  // 2. Notify admins about revocation
+  try {
+    const { notifyAdmins } = await import('./notification');
+    await notifyAdmins(supabaseAdmin, orgId, {
+      title: 'Invitation Revoked',
+      message: `Invitation for ${email} was revoked.`,
+      type: 'invitation_revoked',
+    });
+  } catch (err) {
+    console.error('Failed to notify admins about revocation:', err);
   }
 }
 

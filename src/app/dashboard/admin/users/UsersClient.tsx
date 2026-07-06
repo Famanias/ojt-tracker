@@ -135,6 +135,9 @@ export default function UsersClient({ initialUsers }: { initialUsers: Profile[] 
       if (!res.ok) {
         setInviteError(json.error ?? 'Failed to send invitation.');
       } else {
+        if (json.warning) {
+          alert(json.warning);
+        }
         setInviteDialogOpen(false);
         fetchUsers();
       }
@@ -213,10 +216,15 @@ export default function UsersClient({ initialUsers }: { initialUsers: Profile[] 
         body: JSON.stringify({ action: 'resend' }),
       });
 
+      const json = await res.json();
       if (!res.ok) {
-        const json = await res.json();
         alert(json.error ?? 'Failed to resend invitation.');
       } else {
+        if (json.warning) {
+          alert(json.warning);
+        } else {
+          alert('Invitation resent successfully!');
+        }
         fetchUsers();
       }
     } catch (err: any) {

@@ -153,3 +153,15 @@ export interface Invitation {
   invited_by_profile?: Profile;
 }
 
+export interface Notification {
+  id: string;
+  org_id: string;
+  user_id: string;
+  title: string;
+  message: string;
+  type: string;
+  is_read: boolean;
+  created_at: string;
+}
+
+

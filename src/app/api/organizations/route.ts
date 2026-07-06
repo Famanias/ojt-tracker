@@ -13,11 +13,20 @@ function getAdminClient() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { action, orgName, inviteCode, fullName, email, password } = body;
+    const { action, orgName, inviteCode, fullName, email, password, inviteToken } = body;
 
-    if (!fullName?.trim() || !email?.trim() || !password) {
+    // Only 'create' and 'join' require an email up front. 'accept_invite'
+    // derives the email from the invitation itself, so it must not be
+    // required here.
+    const requiresEmail = action === 'create' || action === 'join';
+
+    if (!fullName?.trim() || !password || (requiresEmail && !email?.trim())) {
       return NextResponse.json(
-        { error: 'Full name, email, and password are required.' },
+        {
+          error: requiresEmail
+            ? 'Full name, email, and password are required.'
+            : 'Full name and password are required.',
+        },
         { status: 400 }
       );
     }
@@ -95,12 +104,10 @@ export async function POST(request: NextRequest) {
 
       return NextResponse.json({ success: true, role: 'ojt' });
     } else if (action === 'accept_invite') {
-      const { inviteToken } = body;
       if (!inviteToken) {
         return NextResponse.json({ error: 'Invite token is required.' }, { status: 400 });
       }
 
-      const supabaseAdmin = getAdminClient();
       const validation = await validateInvitation(supabaseAdmin, inviteToken);
       if (!validation.valid || !validation.invitation) {
         return NextResponse.json({ error: validation.error ?? 'Invalid invitation.' }, { status: 400 });

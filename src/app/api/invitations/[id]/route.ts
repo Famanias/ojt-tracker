@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient as createSupabaseAdmin } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/server';
 import { revokeInvitation } from '@/lib/services/invitation';
+import { sendInvitationEmail } from '@/lib/services/email';
 import crypto from 'crypto';
 
 function getAdminClient() {
@@ -101,19 +102,35 @@ export async function PUT(
       return NextResponse.json({ error: updateError?.message ?? 'Failed to update invitation.' }, { status: 400 });
     }
 
-    // 4. Mock email delivery
+    const { data: inviterProfile } = await supabaseAdmin
+      .from('profiles')
+      .select('full_name')
+      .eq('id', admin.id)
+      .single();
+    const inviterName = inviterProfile?.full_name || 'An Administrator';
+
+    // 4. Send the email via Resend (falls back to console if no API key)
     const orgName = invitation.organization?.name || 'Nexus Organization';
     const origin = request.nextUrl.origin;
     const inviteUrl = `${origin}/invite/${token}`;
+    const expiresAtStr = expiresAt.toLocaleString();
 
-    console.log('\n============================================================');
-    console.log('[MOCK EMAIL DELIVERY - RESEND]');
-    console.log(`To: ${invitation.email}`);
-    console.log(`Subject: Resending invitation to join ${orgName}`);
-    console.log(`Role: ${invitation.role.toUpperCase()}`);
-    console.log(`Accept Invitation Link: ${inviteUrl}`);
-    console.log(`Expires At: ${expiresAt.toLocaleString()}`);
-    console.log('============================================================\n');
+    const emailResult = await sendInvitationEmail({
+      email: invitation.email,
+      orgName,
+      role: invitation.role,
+      inviterName,
+      inviteUrl,
+      expiresAt: expiresAtStr,
+    });
+
+    if (!emailResult.success) {
+      return NextResponse.json({
+        success: true,
+        invitation: updatedInvitation,
+        warning: 'Invitation resent successfully, but the email could not be delivered. Please try resending again.'
+      });
+    }
 
     return NextResponse.json({ success: true, invitation: updatedInvitation });
   } catch (err: unknown) {
