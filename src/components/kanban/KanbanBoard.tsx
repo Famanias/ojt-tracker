@@ -50,6 +50,7 @@ export default function KanbanBoard({ initialColumns, initialOjts, initialProfil
   const [defaultColumnId, setDefaultColumnId] = useState<string>('');
   const [columnDialogOpen, setColumnDialogOpen] = useState(false);
   const [editingColumn, setEditingColumn] = useState<KanbanColumn | null>(null);
+  const dragStartColumnsRef = React.useRef<KanbanColumn[]>([]);
   const supabase = createClient();
   const profile = initialProfile;
 
@@ -145,7 +146,19 @@ export default function KanbanBoard({ initialColumns, initialOjts, initialProfil
     return undefined;
   };
 
+  const isAssignedToTask = (task: KanbanTask): boolean =>
+    task.assignee_id === profile.id ||
+    (task.task_assignees_detail ?? []).some(
+      (a) => a.user_id === profile.id && a.status === 'accepted'
+    );
+
   const onDragStart = (event: DragStartEvent) => {
+    // Deep copy of the columns and task arrays to allow clean rollbacks
+    dragStartColumnsRef.current = columns.map(c => ({
+      ...c,
+      tasks: [...(c.tasks || [])]
+    }));
+
     const { active } = event;
     const id = active.id as string;
 
@@ -168,12 +181,6 @@ export default function KanbanBoard({ initialColumns, initialOjts, initialProfil
 
   const findColumnOfTask = (taskId: string) =>
     columns.find((col) => col.tasks?.some((t) => t.id === taskId));
-
-  const isAssignedToTask = (task: KanbanTask): boolean =>
-    task.assignee_id === profile.id ||
-    (task.task_assignees_detail ?? []).some(
-      (a) => a.user_id === profile.id && a.status === 'accepted'
-    );
 
   const volunteerForTask = async (taskId: string) => {
     const { error: err } = await supabase
@@ -228,7 +235,12 @@ export default function KanbanBoard({ initialColumns, initialOjts, initialProfil
     const { active, over } = event;
     setActiveTask(null);
     setActiveColumn(null);
-    if (!over) return;
+    
+    if (!over) {
+      // Drop cancelled/outside -> rollback UI state
+      setColumns(dragStartColumnsRef.current);
+      return;
+    }
 
     const activeId = active.id as string;
     const overId = over.id as string;
@@ -239,18 +251,34 @@ export default function KanbanBoard({ initialColumns, initialOjts, initialProfil
       const oldIndex = columns.findIndex((c) => c.id === activeId);
       const newIndex = columns.findIndex((c) => c.id === overId);
       const newCols = arrayMove(columns, oldIndex, newIndex);
+      
+      // Optimistic update
       setColumns(newCols);
-      // Persist column positions
-      await Promise.all(
-        newCols.map((col, i) =>
-          supabase.from('kanban_columns').update({ position: i }).eq('id', col.id)
-        )
-      );
+
+      try {
+        const payload = newCols.map((col, i) => ({
+          id: col.id,
+          position: i,
+        }));
+        
+        const res = await fetch('/api/kanban/reorder/columns', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+
+        if (!res.ok) throw new Error('Failed to persist column reorder.');
+        fetchBoard(true); // Sync with DB
+      } catch (err) {
+        console.error(err);
+        setColumns(dragStartColumnsRef.current);
+        setError('Failed to save column order. Order has been rolled back.');
+      }
       return;
     }
 
     // Task reorder / move
-    const activeCol = columns.find((c) => c.tasks?.some((t) => t.id === activeId));
+    const activeCol = dragStartColumnsRef.current.find((c) => c.tasks?.some((t) => t.id === activeId));
     const overCol =
       columns.find((c) => c.id === overId) ||
       columns.find((c) => c.tasks?.some((t) => t.id === overId));
@@ -258,43 +286,75 @@ export default function KanbanBoard({ initialColumns, initialOjts, initialProfil
     if (!activeCol || !overCol) return;
 
     if (activeCol.id === overCol.id) {
-      // Same-column reorder: compute new order first, then update both UI and DB from it
+      // Same-column reorder
       const oldIdx = activeCol.tasks?.findIndex((t) => t.id === activeId) ?? 0;
       const newIdx = activeCol.tasks?.findIndex((t) => t.id === overId) ?? 0;
       if (oldIdx === newIdx) return;
 
       const newTasks = arrayMove(activeCol.tasks ?? [], oldIdx, newIdx);
+      
+      // Optimistic update
+      const updatedCols = columns.map((c) => (c.id === activeCol.id ? { ...c, tasks: newTasks } : c));
+      setColumns(updatedCols);
 
-      // Update UI
-      setColumns((prev) =>
-        prev.map((c) => (c.id === activeCol.id ? { ...c, tasks: newTasks } : c))
-      );
+      try {
+        const payload = {
+          tasks: newTasks.map((t, i) => ({
+            id: t.id,
+            column_id: activeCol.id,
+            position: i,
+          })),
+        };
 
-      // Persist from the computed newTasks (not the stale columns closure)
-      await Promise.all(
-        newTasks.map((t, i) =>
-          supabase.from('kanban_tasks').update({ position: i }).eq('id', t.id)
-        )
-      );
+        const res = await fetch('/api/kanban/reorder/tasks', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+
+        if (!res.ok) throw new Error('Failed to persist task reorder.');
+        fetchBoard(true); // Sync with DB
+      } catch (err) {
+        console.error(err);
+        setColumns(dragStartColumnsRef.current);
+        setError('Failed to save task order. Order has been rolled back.');
+      }
     } else {
-      // Cross-column move — visual state already handled by onDragOver
-      // Find the updated destination column (it has the task appended by onDragOver)
-      const updatedDestCol = columns.find((c) => c.id === overCol.id);
-      if (!updatedDestCol) return;
+      // Cross-column move - visual state already handled by onDragOver
+      // Destination column from the CURRENT state (contains the dragged task)
+      const destCol = columns.find((c) => c.id === overCol.id);
+      if (!destCol) return;
 
-      // Persist column change + re-index both columns
-      await Promise.all([
-        supabase.from('kanban_tasks').update({ column_id: overCol.id }).eq('id', activeId),
-        ...(activeCol.tasks ?? [])
-          .filter((t) => t.id !== activeId)
-          .map((t, i) => supabase.from('kanban_tasks').update({ position: i }).eq('id', t.id)),
-        ...(updatedDestCol.tasks ?? []).map((t, i) =>
-          supabase
-            .from('kanban_tasks')
-            .update({ position: i, column_id: overCol.id })
-            .eq('id', t.id)
-        ),
-      ]);
+      try {
+        const sourceTasks = activeCol.tasks?.filter((t) => t.id !== activeId) || [];
+        const destTasks = destCol.tasks || [];
+
+        const payloadTasks = [
+          ...sourceTasks.map((t, i) => ({
+            id: t.id,
+            column_id: activeCol.id,
+            position: i,
+          })),
+          ...destTasks.map((t, i) => ({
+            id: t.id,
+            column_id: overCol.id,
+            position: i,
+          })),
+        ];
+
+        const res = await fetch('/api/kanban/reorder/tasks', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tasks: payloadTasks }),
+        });
+
+        if (!res.ok) throw new Error('Failed to persist cross-column task movement.');
+        fetchBoard(true); // Sync with DB
+      } catch (err) {
+        console.error(err);
+        setColumns(dragStartColumnsRef.current);
+        setError('Failed to save task move. Board has been rolled back.');
+      }
     }
   };
 

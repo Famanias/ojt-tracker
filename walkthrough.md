@@ -38,20 +38,43 @@ The direct "Add User" creation feature has been replaced with a secure, token-ba
   - [route.ts](file:///D:/repos/ojt-tracker/src/app/auth/callback/route.ts) callback bypasses the standard `/onboarding` redirect if a user does not have an organization but is following a `/invite/` link, allowing OAuth sign-ups/in to complete onboarding.
   - [proxy.ts](file:///D:/repos/ojt-tracker/src/proxy.ts) and [middleware.ts](file:///D:/repos/ojt-tracker/src/middleware.ts) middleware configured to exclude `/invite/` paths from standard authentication redirection, allowing anonymous invitation verification.
 
-### 4. Email Delivery with Resend (Phase 11)
-- **[NEW] Email Template [InvitationEmail.tsx](file:///D:/repos/ojt-tracker/src/emails/InvitationEmail.tsx):**
-  - Designed a premium, responsive email template using React Email components containing the Nexus logo, organization details, role, inviter name, secure accept buttons, and expiration text.
-- **[NEW] Email Service [email.ts](file:///D:/repos/ojt-tracker/src/lib/services/email.ts):**
-  - Created a modular wrapper service for Resend API.
-  - Implemented automatic developer logging fallback so that the application operates locally without crashing even if the API key is not configured.
-- **[MODIFY] API Route `/api/invitations` in [route.ts](file:///D:/repos/ojt-tracker/src/app/api/invitations/route.ts):**
-  - Integrated `sendInvitationEmail` into the invitation creation process.
-  - Returns a warning message in the response if email sending fails, keeping the DB record valid.
-- **[MODIFY] API Route `/api/invitations/[id]` in [route.ts](file:///D:/repos/ojt-tracker/src/app/api/invitations/[id]/route.ts):**
-  - Integrated `sendInvitationEmail` into the resending process, generating new tokens and renewing expirations.
-- **[MODIFY] Admin UI Dashboard [UsersClient.tsx](file:///D:/repos/ojt-tracker/src/app/dashboard/admin/users/UsersClient.tsx):**
-  - Updated action handlers to show alert warning messages to the administrator if the email delivery fails but the invitation is created successfully.
+### 4. In-App Notification System (Phase 11)
+- **[NEW] Migration [20260705010000_create_notifications.sql](file:///D:/repos/ojt-tracker/supabase/migrations/20260705010000_create_notifications.sql):**
+  - Defines the `notifications` table for system logs (`id`, `org_id`, `user_id`, `title`, `message`, `type`, `is_read`, `created_at`).
+  - Sets up RLS rules so users can only view or mark their own notifications as read.
+- **[MODIFY] Main Schema [schema.sql](file:///D:/repos/ojt-tracker/supabase/schema.sql):**
+  - Appended the idempotent `notifications` table schema and RLS policies.
+- **[NEW] Notification Service [notification.ts](file:///D:/repos/ojt-tracker/src/lib/services/notification.ts):**
+  - Implements helpers: `createNotification`, `notifyAdmins` (to broadcast to all organization admins), `listNotifications`, and read status updates.
+- **[NEW] API Route `/api/notifications` in [route.ts](file:///D:/repos/ojt-tracker/src/app/api/notifications/route.ts):**
+  - Handles retrieving user notifications and updating read statuses.
+- **[MODIFY] Service Triggers in [invitation.ts](file:///D:/repos/ojt-tracker/src/lib/services/invitation.ts):**
+  - Sends a confirmation to the inviting admin when an invitation is sent.
+  - Broadcasts to all admins when an invitation is accepted.
+  - Broadcasts to all admins if a verification check determines the token has expired.
+  - Broadcasts to all admins when an invitation is revoked.
+- **[NEW] UI Notification Dashboard `/dashboard/notifications`:**
+  - Pages at [page.tsx](file:///D:/repos/ojt-tracker/src/app/dashboard/notifications/page.tsx) and [NotificationsClient.tsx](file:///D:/repos/ojt-tracker/src/app/dashboard/notifications/NotificationsClient.tsx) allow viewing notifications with custom icons based on action type, marking items as read, or clearing all.
+- **[MODIFY] Sidebar Integration [Sidebar.tsx](file:///D:/repos/ojt-tracker/src/components/shared/Sidebar.tsx):**
+  - Registered "Notifications" navigation item in the Sidebar.
+  - Added real-time polling to fetch unread count, rendering an error `Badge` in collapsed state and a numeric count `Chip` in expanded state.
 
+### 5. Kanban Board Drag and Drop Fix (Phase 12)
+- **[NEW] Migration [20260706000000_kanban_reorder.sql](file:///D:/repos/ojt-tracker/supabase/migrations/20260706000000_kanban_reorder.sql):**
+  - Defines the indexes `idx_kanban_columns_org_position`, `idx_kanban_tasks_column_position`, and `idx_kanban_tasks_org_column_position` to optimize column and task lookups.
+  - Registers the PostgreSQL security-definer RPC functions `reorder_kanban_columns` and `reorder_kanban_tasks` to execute updates inside a single database transaction. Includes user organization validation and task ownership checks for OJT accounts.
+- **[MODIFY] Main Schema [schema.sql](file:///D:/repos/ojt-tracker/supabase/schema.sql):**
+  - Appended the indexes and reorder RPC function definitions.
+- **[NEW] Kanban Service [kanban.ts](file:///D:/repos/ojt-tracker/src/lib/services/kanban.ts):**
+  - Implements the service helpers `reorderColumns` and `reorderTasks` to invoke the database RPC functions.
+- **[NEW] API Routes:**
+  - `PATCH /api/kanban/reorder/columns` in [route.ts](file:///D:/repos/ojt-tracker/src/app/api/kanban/reorder/columns/route.ts): Handles column reordering requests, validating that only admins and supervisors can modify column positions.
+  - `PATCH /api/kanban/reorder/tasks` in [route.ts](file:///D:/repos/ojt-tracker/src/app/api/kanban/reorder/tasks/route.ts): Handles task reordering and cross-column moves.
+- **[MODIFY] Kanban Board Drag Handlers [KanbanBoard.tsx](file:///D:/repos/ojt-tracker/src/components/kanban/KanbanBoard.tsx):**
+  - Performs a deep copy backup of the columns and tasks array state at the start of a drag.
+  - Updates the local state immediately on drop (optimistic UI update).
+  - Sends a single PATCH request containing all affected columns or tasks, and quietly triggers a background reload (`fetchBoard(true)`) upon success.
+  - Gracefully rolls back the UI to the pre-drag state if the API request fails, or if a user drops a card outside of a valid column boundary.
 
 ---
 

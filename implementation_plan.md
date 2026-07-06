@@ -1,324 +1,523 @@
-Phase 11 — Email Delivery with Resend
-Goal
+Overall Architecture
 
-Replace the current mock email implementation with a production-ready email delivery system using Resend. When an administrator invites a user, Nexus should automatically send a professionally designed invitation email containing a secure, single-use invitation link. The system should also support resending invitations and handle email delivery failures gracefully.
+Current
 
-Objectives
-Integrate Resend as the email delivery provider.
-Replace console-based mock emails with actual email sending.
-Deliver branded HTML invitation emails.
-Support invitation resending.
-Handle email delivery failures without affecting invitation creation.
-Securely manage API keys using environment variables.
-Keep email sending abstracted behind a reusable service.
-Phase 11.1 — Configure Resend
-Goal
+Drag Card
+      ↓
+React State Updated
+      ↓
+UI Looks Correct
+      ↓
+Refresh
+      ↓
+Everything Resets
 
-Set up Resend for the Nexus application.
+Target
 
-Tasks
-Create a Resend account.
-Verify the sending domain (or use the testing domain during development).
-Generate a Resend API Key.
-Store the API key securely in environment variables.
+Drag Card
+      ↓
+Optimistic UI Update
+      ↓
+Background API Call
+      ↓
+Database Updated
+      ↓
+Done
 
-Example:
+Refresh
+      ↓
+Correct Order Loaded
 
-RESEND_API_KEY=...
-NEXT_PUBLIC_APP_URL=https://nexus.example.com
-EMAIL_FROM=Nexus <noreply@nexus.example.com>
-Deliverables
-Working Resend account.
-Verified sender identity.
-Environment variables configured for development and production.
-Phase 11.2 — Install Dependencies
-Goal
+The user should never wait for the database.
 
-Install the required packages for email delivery.
+Phase 1 — Backend APIs
 
-Tasks
+Instead of many APIs, create only two.
 
-Install:
+PATCH /api/kanban/reorder/tasks
 
-resend
-@react-email/components
-react-email (optional for previewing templates)
-Deliverables
-Email dependencies added to the project.
-Build compiles successfully.
-Phase 11.3 — Create Email Service
-Goal
+PATCH /api/kanban/reorder/columns
 
-Abstract all email functionality into a dedicated service layer.
+These endpoints exist ONLY for ordering.
 
-New Service
-src/lib/services/email.ts
-Responsibilities
-Initialize the Resend client.
-Send invitation emails.
-Send reminder emails (future).
-Send notification emails (future).
-Centralize email error handling.
-Example Functions
-sendInvitationEmail()
+Do NOT reuse edit task.
 
-sendInvitationReminder()
+Keep them dedicated.
 
-sendInvitationAcceptedNotification()
+Phase 2 — Reordering Columns
 
-sendInvitationExpiredNotification()
-Design Principles
-API routes should never communicate with Resend directly.
-All email operations should pass through the email service.
-Future notification types can reuse the same service.
-Phase 11.4 — Create Email Templates
-Goal
+Your table already has
 
-Build reusable, branded email templates using React Email.
+kanban_columns
 
-Directory Structure
-src/emails/
+id
+title
+position
 
-InvitationEmail.tsx
+Dragging
 
-InvitationReminder.tsx
+Todo
+Doing
+Review
+Done
 
-InvitationAccepted.tsx
-Invitation Email
+to
 
-The email should include:
+Doing
+Todo
+Review
+Done
 
-Nexus logo
-Organization name
-Inviter's name
-Assigned role
-Invitation expiration date
-Accept Invitation button
-Fallback invitation URL
-Support contact information
-Security notice indicating that the invitation is intended only for the recipient
-Styling
+should update
 
-Maintain the Nexus design language:
+Doing -> position 0
+Todo -> position 1
+Review -> position 2
+Done -> position 3
 
-Clean layout
-Responsive design
-Mobile-friendly
-Accessible typography
-Brand colors
-Professional appearance
-Phase 11.5 — Integrate Email Sending into Invitation Creation
-Goal
+The frontend should send
 
-Automatically send an email whenever an invitation is created.
+[
+  {
+    id,
+    position
+  }
+]
 
-Current Flow
-Admin
+Example
+
+[
+  {
+    "id":"column-a",
+    "position":0
+  },
+  {
+    "id":"column-b",
+    "position":1
+  },
+  {
+    "id":"column-c",
+    "position":2
+  }
+]
+
+Backend
+
+Loop
+
+update column
+set position = ?
+where id = ?
+
+Since there are usually fewer than 10 columns, this is very fast.
+
+Phase 3 — Reordering Tasks Inside Same Column
+
+Example
+
+Before
+
+Todo
+
+0 Task A
+1 Task B
+2 Task C
+3 Task D
+
+Move
+
+Task D
+
+to index 1
+
+Result
+
+Task A
+Task D
+Task B
+Task C
+
+Database should become
+
+Task A position 0
+
+Task D position 1
+
+Task B position 2
+
+Task C position 3
+
+Don't only update Task D.
+
+Update every affected task.
+
+This guarantees
+
+0
+1
+2
+3
+
+No gaps.
+
+No duplicates.
+
+Phase 4 — Moving Between Columns
+
+Example
+
+Todo
+
+Task A
+Task B
+Task C
+
+Doing
+
+Task D
+Task E
+
+Move
+
+Task B
 
 ↓
 
-Create Invitation
+Doing
 
-↓
+Result
 
-Return Invite URL
-New Flow
-Admin
+Todo
 
-↓
+Task A
+Task C
 
-Create Invitation Record
+Doing
 
-↓
+Task D
+Task B
+Task E
 
-Generate Secure Token
+Database must update BOTH columns.
 
-↓
+Todo
 
-Generate Invitation URL
+Task A
 
-↓
+position 0
 
-Send Email via Resend
+Task C
 
-↓
+position 1
 
-Return Success Response
-Requirements
-Email sending occurs only after the invitation record has been successfully created.
-Invitation creation should remain independent from email delivery.
-If email delivery fails, the invitation should still exist and be recoverable.
-Phase 11.6 — Implement Resend Invitation
-Goal
+Doing
 
-Replace the existing mock email implementation.
+Task D
 
-Existing Behavior
-Create invitation
+position 0
 
-↓
+Task B
 
-console.log(invitationLink)
-New Behavior
-Create invitation
+position 1
 
-↓
+Task E
 
-sendInvitationEmail()
+position 2
 
-↓
+Also update
 
-Email delivered to recipient
+Task B
 
-The email service should receive:
+column_id = Doing
 
-Recipient email
-Organization name
-Assigned role
-Inviter name
-Invitation URL
-Expiration date
-Phase 11.7 — Handle Email Delivery Errors
-Goal
+This is the most common bug people miss.
 
-Ensure failed email delivery does not compromise invitation integrity.
+Phase 5 — API Payload
 
-Error Scenarios
-Invalid API key
-Network timeout
-Resend service unavailable
-Invalid recipient email
-Domain verification issues
-System Behavior
+Instead of sending one task,
 
-If email delivery fails:
+send only the affected tasks.
 
-Keep the invitation in Pending status.
-Log the failure.
-Return an informative response to the administrator.
-Allow the invitation to be resent later.
+Example
 
-Example administrator message:
+{
+    "tasks":[
+        {
+            "id":"1",
+            "column_id":"todo",
+            "position":0
+        },
+        {
+            "id":"2",
+            "column_id":"todo",
+            "position":1
+        },
+        {
+            "id":"3",
+            "column_id":"doing",
+            "position":0
+        }
+    ]
+}
 
-Invitation created successfully, but the email could not be delivered. Please try resending the invitation.
+Backend
 
-Phase 11.8 — Implement Resend Invitation Action
-Goal
+for task
 
-Allow administrators to resend pending invitations.
+update
+
+column_id
+position
+
+One request.
+
+Many updates.
+
+Phase 6 — Optimistic Updates
+
+Do NOT wait for Supabase.
 
 Flow
-Admin
+
+Drag
 
 ↓
 
-Click Resend
+Immediately update React state
 
 ↓
 
-Generate New Token
+User sees movement instantly
 
 ↓
 
-Update Expiration
+Send PATCH request
 
 ↓
 
-Send Email Again
+Success
+
+nothing happens
 
 ↓
 
-Success Message
-Requirements
-Previous invitation link becomes invalid.
-Generate a fresh secure token.
-Reset expiration date.
-Prevent resending accepted, revoked, or expired invitations unless explicitly renewed.
-Phase 11.9 — Improve Administrator Feedback
-Goal
+Failure
 
-Provide clear feedback regarding email delivery.
+rollback previous state
 
-Successful Delivery
+This makes the board feel instant.
 
-Display:
+Phase 7 — Loading the Board
 
-Invitation sent successfully.
+When fetching columns
 
-Delivery Failure
+Always
 
-Display:
+order by position asc
 
-Invitation created, but email delivery failed.
+When fetching tasks
 
-Resend Success
+Always
 
-Display:
+order by position asc
 
-Invitation resent successfully.
+Never rely on creation date.
 
-Loading States
+Phase 8 — Database Transaction
 
-During email delivery:
+If using PostgreSQL directly,
 
-Disable the submit button.
-Display progress indicator.
-Prevent duplicate submissions.
-Phase 11.10 — Logging and Monitoring
-Goal
+all updates should happen inside one transaction.
 
-Provide visibility into email delivery for debugging and maintenance.
+BEGIN
 
-Log Events
-Invitation created
-Email successfully sent
-Email failed
-Invitation resent
-Resend failure
-Recommended Logged Data
-Invitation ID
-Recipient email
-Organization ID
-Administrator ID
-Timestamp
-Delivery status
-Resend message ID (if available)
-Future Enhancement
+update
 
-Persist email delivery metadata in a dedicated audit log or notification history table for troubleshooting and reporting.
+update
 
-Phase 11.11 — Security Considerations
-Requirements
-Never expose the Resend API key to the client.
-Send emails exclusively from server-side code.
-Do not embed sensitive information in email URLs beyond the invitation token.
-Ensure invitation links remain single-use and expire after the configured duration.
-Validate invitation ownership before allowing acceptance.
-Use HTTPS for all generated invitation URLs.
-Phase 11.12 — Testing
-Functional Tests
-Invitation Creation
-Email is delivered after invitation creation.
-Email contains the correct invitation link.
-Email contains the correct organization and role.
-Invitation Acceptance
-Accept Invitation button opens the correct page.
-Invitation token is valid.
-User joins the correct organization.
-Resend
-New email contains a new token.
-Previous token is invalid.
-Expiration date is refreshed.
-Failure Testing
-Invalid API key.
-Network interruption.
-Unverified sender domain.
-Invalid recipient email.
-Resend API outage.
-User Experience
-Responsive email layout.
-Email renders correctly in Gmail, Outlook, Apple Mail, and major mobile email clients.
-Dark mode compatibility (where supported).
-Expected Outcome
+update
 
-After this phase is complete, Nexus will use Resend to deliver real invitation emails instead of logging invitation links to the console. Administrators will be able to invite users through professionally branded emails, resend pending invitations when needed, and receive clear feedback on delivery status. The email delivery system will be modular, secure, and reusable, providing a foundation for future transactional emails such as password resets, attendance summaries, task notifications, and system announcements.
+COMMIT
+
+Not
+
+update
+
+update
+
+update
+
+Otherwise one failed update leaves inconsistent positions.
+
+Since you're using Supabase, the cleanest approach is to expose a PostgreSQL RPC function that performs the reorder inside a single transaction rather than issuing multiple client-side updates.
+
+Phase 9 — Performance
+
+Do not do this
+
+drag
+
+↓
+
+20 API requests
+
+Do
+
+drag
+
+↓
+
+1 API request
+
+↓
+
+contains every changed task
+
+Example
+
+PATCH
+
+tasks
+
+[
+...
+...
+...
+]
+
+One network call.
+
+Phase 10 — React Query / SWR
+
+If you're using React Query
+
+optimistically update cache
+
+↓
+
+mutation
+
+↓
+
+invalidate kanban query
+
+If using plain React
+
+setColumns()
+
+↓
+
+PATCH
+
+↓
+
+done
+Phase 11 — Race Conditions
+
+Suppose
+
+Admin A
+
+and
+
+Admin B
+
+drag simultaneously.
+
+Always trust the database.
+
+After every successful reorder,
+
+reload
+
+columns
+
+tasks
+
+or invalidate the cache.
+
+That guarantees everyone eventually sees the same order.
+
+Phase 12 — Future-Proofing
+
+If you later implement real-time collaboration using Supabase Realtime, this architecture still works:
+
+Admin A drags
+
+↓
+
+Database updated
+
+↓
+
+Realtime event
+
+↓
+
+Admin B receives update
+
+↓
+
+Board automatically reorders
+
+No redesign required.
+
+Suggested Project Structure
+lib/
+    services/
+        kanban.ts
+            reorderTasks()
+            reorderColumns()
+
+app/
+    api/
+        kanban/
+            reorder/
+                tasks/
+                    route.ts
+                columns/
+                    route.ts
+Database Changes Needed
+
+None are strictly required. Your schema already has the necessary fields:
+
+kanban_columns.position for column ordering.
+kanban_tasks.position for ordering tasks within a column.
+kanban_tasks.column_id for moving tasks between columns.
+
+I would only add indexes to make ordering queries more efficient as your data grows:
+
+create index if not exists idx_kanban_columns_org_position
+on kanban_columns(org_id, position);
+
+create index if not exists idx_kanban_tasks_column_position
+on kanban_tasks(column_id, position);
+
+create index if not exists idx_kanban_tasks_org_column_position
+on kanban_tasks(org_id, column_id, position);
+
+These indexes match your most common query pattern (WHERE org_id/column_id ... ORDER BY position) and will keep board loading and reordering fast.
+
+Implementation Order
+
+I would tackle the work in this order to minimize bugs and keep each milestone testable:
+
+Column drag persistence
+Create PATCH /api/kanban/reorder/columns.
+Update all position values after a column drag.
+Load columns ordered by position.
+Task reorder within the same column
+Create PATCH /api/kanban/reorder/tasks.
+Recalculate positions for every affected task in that column.
+Persist in a single request.
+Task moves across columns
+Update the task's column_id.
+Recalculate positions in both the source and destination columns.
+Persist all affected rows in one request.
+Optimistic UI
+Update local state immediately.
+Send the reorder request in the background.
+Roll back only if the request fails.
+Transactional persistence
+Move the reorder logic into a PostgreSQL RPC function so all updates succeed or fail together.
+Refresh or invalidate the Kanban query after success.
