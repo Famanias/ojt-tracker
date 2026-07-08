@@ -26,6 +26,7 @@ import {
 import { createClient } from '@/lib/supabase/client';
 import { KanbanTask, Profile, KanbanColumn } from '@/types';
 import { formatDate, priorityColor } from '@/lib/utils/format';
+import { canEditTask as checkCanEditTask, isPersonalBoard } from '@/lib/utils/kanbanScope';
 
 interface Props {
   open: boolean;
@@ -55,8 +56,8 @@ export default function TaskViewDialog({ open, onClose, onEdit, onArchive, onRef
   const hasPendingInvitation = myRecord?.status === 'pending';
   const isAcceptedAssignee = myRecord?.status === 'accepted';
   const alreadyInTask = isCreator || !!myRecord;
-  const canEdit = isCreator || canManage || isAcceptedAssignee;
-  const canVolunteer = currentUser.role === 'ojt' && !alreadyInTask;
+  const canEdit = checkCanEditTask(currentUser, task.assignee_id, isAcceptedAssignee);
+  const canVolunteer = !isPersonalBoard(currentUser) && currentUser.role === 'ojt' && !alreadyInTask;
 
   const pColor = priorityColor(task.priority);
   const attachments = task.attachments ?? [];

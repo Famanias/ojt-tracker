@@ -18,6 +18,8 @@ import AttendanceTable from '@/components/attendance/AttendanceTable';
 import { formatHours } from '@/lib/utils/format';
 import { Attendance, Profile } from '@/types';
 import { saveTimezone } from '@/actions/settings';
+import { useAuth } from '@/lib/context/AuthContext';
+import { useRouter } from 'next/navigation';
 
 // Build a list of all IANA timezone names
 const ALL_TIMEZONES: string[] = (() => {
@@ -71,6 +73,8 @@ export default function AdminDashboardClient({ stats, initialAttendance, setting
   const [pendingTz, setPendingTz] = useState(timezone);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
+  const { profile } = useAuth();
+  const router = useRouter();
 
   useEffect(() => {
     setMounted(true);
@@ -102,6 +106,33 @@ export default function AdminDashboardClient({ stats, initialAttendance, setting
 
   return (
     <Box sx={{ p: 3 }}>
+      {/* Org setup banner */}
+      {profile && !profile.org_id && (
+        <Alert
+          severity="info"
+          sx={{
+            mb: 3,
+            borderRadius: 3,
+            bgcolor: 'rgba(99, 102, 241, 0.05)',
+            border: '1px solid rgba(99, 102, 241, 0.2)',
+            color: 'text.primary',
+            '& .MuiAlert-icon': { color: 'primary.main' }
+          }}
+          action={
+            <Button
+              color="primary"
+              size="small"
+              onClick={() => router.push('/onboarding')}
+              sx={{ fontWeight: 600, textTransform: 'none' }}
+            >
+              Set Up Now
+            </Button>
+          }
+        >
+          You are currently using the application in Personal Mode. Set up or join an organization to start managing OJT trainee workflows.
+        </Alert>
+      )}
+
       {/* Header */}
       <Box sx={{ mb: 3, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2 }}>
         <Box>

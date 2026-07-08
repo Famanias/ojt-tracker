@@ -20,6 +20,7 @@ import { useDropzone } from 'react-dropzone';
 import { createClient } from '@/lib/supabase/client';
 import { uploadTaskAttachment, deleteTaskAttachments } from '@/actions/attachments';
 import { KanbanTask, KanbanColumn, Profile, TaskAttachment } from '@/types';
+import { isPersonalBoard, canAssignUsers } from '@/lib/utils/kanbanScope';
 import { getFileType, formatFileSize, priorityColor } from '@/lib/utils/format';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -53,6 +54,7 @@ interface UploadingFile {
 export default function TaskModal({
   open, onClose, onSave, editingTask, defaultColumnId, columns, ojts, currentUser,
 }: Props) {
+  const showAssignee = canAssignUsers(currentUser);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [columnId, setColumnId] = useState('');
@@ -115,8 +117,8 @@ export default function TaskModal({
   const handleSave = async () => {
     if (!title.trim()) { setError('Task title is required.'); return; }
     const isOjt = currentUser?.role === 'ojt';
-    // Admins/supervisors must assign at least one OJT; OJTs are auto-assigned to themselves
-    if (!isOjt && assignedOjtIds.length === 0) { setError('Please assign at least one OJT.'); return; }
+    // Admins/supervisors must assign at least one OJT; OJTs are auto-assigned to themselves. Skip in Personal Mode.
+    if (showAssignee && !isOjt && assignedOjtIds.length === 0) { setError('Please assign at least one OJT.'); return; }
     setSaving(true);
     setError('');
 
@@ -338,52 +340,54 @@ export default function TaskModal({
           </Grid>
 
           {/* Assigned OJTs */}
-          <Grid size={{ xs: 12, sm: 6 }}>
-            <FormControl fullWidth required={currentUser?.role !== 'ojt'}>
-              <InputLabel>
-                {currentUser?.role === 'ojt' ? 'Invite Other OJTs (optional)' : 'Assigned OJTs *'}
-              </InputLabel>
-              <Select
-                multiple
-                value={assignedOjtIds}
-                onChange={(e) => setAssignedOjtIds(e.target.value as string[])}
-                input={<OutlinedInput label={currentUser?.role === 'ojt' ? 'Invite Other OJTs (optional)' : 'Assigned OJTs *'} />}
-                renderValue={(selected) => (
-                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                    {(selected as string[]).map((id) => {
-                      const ojt = ojts.find((o) => o.id === id);
-                      return (
-                        <Chip
-                          key={id}
-                          size="small"
-                          avatar={<Avatar src={ojt?.avatar_url}>{ojt?.full_name.charAt(0)}</Avatar>}
-                          label={ojt?.full_name ?? id}
-                        />
-                      );
-                    })}
-                  </Box>
-                )}
-              >
-                {ojts
-                  .filter((o) => o.id !== currentUser?.id)
-                  .map((ojt) => (
-                  <MenuItem key={ojt.id} value={ojt.id}>
-                    <Checkbox checked={assignedOjtIds.includes(ojt.id)} />
-                    <Avatar src={ojt.avatar_url} sx={{ width: 24, height: 24, mr: 1 }}>
-                      {ojt.full_name.charAt(0)}
-                    </Avatar>
-                    <ListItemText
-                      primary={ojt.full_name}
-                      secondary={currentUser?.role === 'ojt' ? `Will be invited` : ojt.department}
-                    />
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          </Grid>
+          {showAssignee && (
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <FormControl fullWidth required={currentUser?.role !== 'ojt'}>
+                <InputLabel>
+                  {currentUser?.role === 'ojt' ? 'Invite Other OJTs (optional)' : 'Assigned OJTs *'}
+                </InputLabel>
+                <Select
+                  multiple
+                  value={assignedOjtIds}
+                  onChange={(e) => setAssignedOjtIds(e.target.value as string[])}
+                  input={<OutlinedInput label={currentUser?.role === 'ojt' ? 'Invite Other OJTs (optional)' : 'Assigned OJTs *'} />}
+                  renderValue={(selected) => (
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                      {(selected as string[]).map((id) => {
+                        const ojt = ojts.find((o) => o.id === id);
+                        return (
+                          <Chip
+                            key={id}
+                            size="small"
+                            avatar={<Avatar src={ojt?.avatar_url}>{ojt?.full_name.charAt(0)}</Avatar>}
+                            label={ojt?.full_name ?? id}
+                          />
+                        );
+                      })}
+                    </Box>
+                  )}
+                >
+                  {ojts
+                    .filter((o) => o.id !== currentUser?.id)
+                    .map((ojt) => (
+                    <MenuItem key={ojt.id} value={ojt.id}>
+                      <Checkbox checked={assignedOjtIds.includes(ojt.id)} />
+                      <Avatar src={ojt.avatar_url} sx={{ width: 24, height: 24, mr: 1 }}>
+                        {ojt.full_name.charAt(0)}
+                      </Avatar>
+                      <ListItemText
+                        primary={ojt.full_name}
+                        secondary={currentUser?.role === 'ojt' ? `Will be invited` : ojt.department}
+                      />
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
+          )}
 
           {/* Due Date */}
-          <Grid size={{ xs: 12, sm: 6 }}>
+          <Grid size={{ xs: 12, sm: showAssignee ? 6 : 12 }}>
             <TextField
               fullWidth label="Due Date" type="date"
               value={dueDate}

@@ -44,11 +44,6 @@ export async function GET(request: Request) {
           );
         }
 
-        // If user profile has no organization association, route them to onboarding (unless they are accepting an invite)
-        if (!profile.org_id && (!next || !next.startsWith('/invite/'))) {
-          return NextResponse.redirect(`${origin}/onboarding`);
-        }
-
         // Redirect to original destination or default dashboard based on role
         if (next) {
           return NextResponse.redirect(`${origin}${next}`);

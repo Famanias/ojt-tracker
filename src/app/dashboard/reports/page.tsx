@@ -1,16 +1,19 @@
 import { createClient } from '@/lib/supabase/server';
 import { Profile } from '@/types';
 import ReportsClient from './ReportsClient';
+import RequireOrganization from '@/components/shared/RequireOrganization';
 
 export const dynamic = 'force-dynamic';
 
 export default async function ReportsPage() {
   const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
 
-  const [{ data: ojts }, { data: allAtt }] =
+  const [{ data: ojts }, { data: allAtt }, { data: profile }] =
     await Promise.all([
       supabase.from('profiles').select('*').eq('role', 'ojt').eq('is_active', true),
       supabase.from('attendance').select('user_id, total_hours, date').not('total_hours', 'is', null),
+      supabase.from('profiles').select('*').eq('id', user!.id).single(),
     ]);
 
   const reports = (ojts ?? []).map((ojt: Profile) => {
@@ -28,5 +31,9 @@ export default async function ReportsPage() {
     };
   }).sort((a, b) => b.total_hours - a.total_hours);
 
-  return <ReportsClient initialReports={reports} />;
+  return (
+    <RequireOrganization featureName="Reports" serverProfile={profile as Profile}>
+      <ReportsClient initialReports={reports} />
+    </RequireOrganization>
+  );
 }

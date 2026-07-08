@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   Box, Alert, Stack, Typography, Tabs, Tab, Chip,
-  InputAdornment, CircularProgress, Link
+  InputAdornment, CircularProgress, Link, Button
 } from '@mui/material';
 import {
   Business as OrgIcon,
@@ -287,6 +287,30 @@ export default function OnboardingClient({ fullName, email }: OnboardingClientPr
             {tab === 0 ? 'Create Workspace & Continue' : 'Join Workspace & Continue'}
           </PrimaryButton>
         </Box>
+
+        <Button
+          fullWidth
+          variant="outlined"
+          color="inherit"
+          onClick={() => router.push('/dashboard')}
+          disabled={loading}
+          sx={{
+            mt: 2,
+            py: 1.5,
+            fontSize: 16,
+            fontWeight: 600,
+            textTransform: 'none',
+            borderRadius: 2,
+            borderColor: 'divider',
+            color: 'text.primary',
+            '&:hover': {
+              bgcolor: 'action.hover',
+              borderColor: 'text.primary',
+            }
+          }}
+        >
+          Continue in Personal Mode
+        </Button>
 
         <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
           <Link

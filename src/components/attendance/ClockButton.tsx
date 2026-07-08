@@ -19,6 +19,7 @@ import { isWithinRadius } from '@/lib/utils/distance';
 import { formatTime, formatHours } from '@/lib/utils/format';
 import { Attendance, SiteSettings } from '@/types';
 import { format } from 'date-fns';
+import { useAuth } from '@/lib/context/AuthContext';
 
 interface Props {
   userId: string;
@@ -34,6 +35,8 @@ export default function ClockButton({ userId, todayRecord, onSuccess }: Props) {
   const [success, setSuccess] = useState('');
   const [mounted, setMounted] = useState(false);
   const [currentTime, setCurrentTime] = useState<Date | null>(null);
+  const { profile } = useAuth();
+  const isPersonalMode = !profile?.org_id;
   const supabase = createClient();
 
   const isClockedIn = !!todayRecord?.clock_in && !todayRecord?.clock_out;
@@ -52,7 +55,7 @@ export default function ClockButton({ userId, todayRecord, onSuccess }: Props) {
       .from('site_settings')
       .select('*')
       .limit(1)
-      .single()
+      .maybeSingle()
       .then(({ data }) => setSiteSettings(data));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -62,7 +65,7 @@ export default function ClockButton({ userId, todayRecord, onSuccess }: Props) {
     setError('');
     setSuccess('');
 
-    const isLocationRequired = siteSettings?.require_location_verification ?? true;
+    const isLocationRequired = isPersonalMode ? false : (siteSettings?.require_location_verification ?? true);
     let lat: number | null = null;
     let lng: number | null = null;
     let distance: number | null = null;
@@ -242,7 +245,7 @@ export default function ClockButton({ userId, todayRecord, onSuccess }: Props) {
         )}
 
         {/* Location chip */}
-        {siteSettings && (
+        {siteSettings && !isPersonalMode && (
           <Box sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
             {siteSettings.require_location_verification ? (
               <>
@@ -266,6 +269,19 @@ export default function ClockButton({ userId, todayRecord, onSuccess }: Props) {
                 variant="outlined"
               />
             )}
+          </Box>
+        )}
+
+        {/* Personal Mode chip */}
+        {isPersonalMode && (
+          <Box sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+            <Chip
+              icon={<LocationIcon />}
+              label="Personal Mode (GPS Bypass)"
+              color="info"
+              size="small"
+              variant="outlined"
+            />
           </Box>
         )}
 

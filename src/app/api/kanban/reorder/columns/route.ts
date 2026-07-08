@@ -14,12 +14,12 @@ export async function PATCH(request: NextRequest) {
     // Check user profile for organization association
     const { data: profile } = await supabase
       .from('profiles')
-      .select('org_id')
+      .select('id, org_id')
       .eq('id', user.id)
       .single();
 
-    if (!profile || !profile.org_id) {
-      return NextResponse.json({ error: 'Forbidden: user has no organization.' }, { status: 403 });
+    if (!profile) {
+      return NextResponse.json({ error: 'Forbidden: user not found.' }, { status: 403 });
     }
 
     const body = await request.json();

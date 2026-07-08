@@ -17,12 +17,12 @@ export async function PATCH(
     // Check user profile for organization association
     const { data: profile } = await supabase
       .from('profiles')
-      .select('org_id')
+      .select('id, org_id')
       .eq('id', user.id)
       .single();
 
-    if (!profile || !profile.org_id) {
-      return NextResponse.json({ error: 'Forbidden: user has no organization.' }, { status: 403 });
+    if (!profile) {
+      return NextResponse.json({ error: 'Forbidden: user not found.' }, { status: 403 });
     }
 
     const body = await request.json();
@@ -36,11 +36,18 @@ export async function PATCH(
       return NextResponse.json({ error: 'No fields to update.' }, { status: 400 });
     }
 
-    const { data: updatedCol, error: updateError } = await supabase
+    const query = supabase
       .from('kanban_columns')
       .update(updates)
-      .eq('id', id)
-      .eq('org_id', profile.org_id)
+      .eq('id', id);
+
+    if (profile.org_id) {
+      query.eq('org_id', profile.org_id);
+    } else {
+      query.is('org_id', null).eq('created_by', user.id);
+    }
+
+    const { data: updatedCol, error: updateError } = await query
       .select()
       .single();
 
@@ -71,12 +78,12 @@ export async function DELETE(
     // Check user profile for organization association
     const { data: profile } = await supabase
       .from('profiles')
-      .select('org_id')
+      .select('id, org_id')
       .eq('id', user.id)
       .single();
 
-    if (!profile || !profile.org_id) {
-      return NextResponse.json({ error: 'Forbidden: user has no organization.' }, { status: 403 });
+    if (!profile) {
+      return NextResponse.json({ error: 'Forbidden: user not found.' }, { status: 403 });
     }
 
     // Read the body for task handling (move destination)

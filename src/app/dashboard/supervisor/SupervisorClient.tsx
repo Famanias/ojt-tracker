@@ -21,6 +21,8 @@ import { format } from 'date-fns';
 import StatCard from '@/components/shared/StatCard';
 import AttendanceTable from '@/components/attendance/AttendanceTable';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/lib/context/AuthContext';
+import { Alert } from '@mui/material';
 
 interface OJTSummary {
   profile: Profile;
@@ -38,6 +40,7 @@ interface Props {
 export default function SupervisorClient({ summaries, stats }: Props) {
   const [search, setSearch] = useState('');
   const router = useRouter();
+  const { profile } = useAuth();
 
   const filtered = summaries.filter((s) =>
     s.profile.full_name.toLowerCase().includes(search.toLowerCase()) ||
@@ -46,6 +49,33 @@ export default function SupervisorClient({ summaries, stats }: Props) {
 
   return (
     <Box sx={{ p: 3 }}>
+      {/* Org setup banner */}
+      {profile && !profile.org_id && (
+        <Alert
+          severity="info"
+          sx={{
+            mb: 3,
+            borderRadius: 3,
+            bgcolor: 'rgba(99, 102, 241, 0.05)',
+            border: '1px solid rgba(99, 102, 241, 0.2)',
+            color: 'text.primary',
+            '& .MuiAlert-icon': { color: 'primary.main' }
+          }}
+          action={
+            <Button
+              color="primary"
+              size="small"
+              onClick={() => router.push('/onboarding')}
+              sx={{ fontWeight: 600, textTransform: 'none' }}
+            >
+              Set Up Now
+            </Button>
+          }
+        >
+          You are currently using the application in Personal Mode. Set up or join an organization to start monitoring OJT trainee workflows.
+        </Alert>
+      )}
+
       <Box sx={{ mb: 3, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2 }}>
         <Box>
           <Typography variant="h4" fontWeight={800}>Supervisor Dashboard</Typography>

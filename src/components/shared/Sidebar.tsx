@@ -17,6 +17,7 @@ import {
   ChevronRight as ChevronRightIcon,
   BarChart as ReportIcon,
   Notifications as NotificationsIcon,
+  Business as OrgIcon,
 } from '@mui/icons-material';
 import { useRouter, usePathname } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
@@ -67,7 +68,7 @@ export default function Sidebar({ profile }: { profile: Profile }) {
   };
 
   useEffect(() => {
-    fetchUnreadCount();
+    Promise.resolve().then(() => fetchUnreadCount());
     // Refresh count every 30 seconds
     const interval = setInterval(fetchUnreadCount, 30000);
     return () => clearInterval(interval);
@@ -75,13 +76,37 @@ export default function Sidebar({ profile }: { profile: Profile }) {
 
   // Listen to path changes to refresh unread count immediately
   useEffect(() => {
-    fetchUnreadCount();
+    Promise.resolve().then(() => fetchUnreadCount());
   }, [pathname]);
 
   const signOut = async () => {
     await supabase.auth.signOut();
     router.refresh();
     router.push('/login');
+  };
+
+  const handleLeaveOrg = async () => {
+    const confirmLeave = window.confirm(
+      'Are you sure you want to leave your organization? You will lose access to all organization-specific features.'
+    );
+    if (!confirmLeave) return;
+
+    try {
+      const res = await fetch('/api/organizations/leave', {
+        method: 'POST',
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        alert(json.error ?? 'Failed to leave organization.');
+      } else {
+        await supabase.auth.refreshSession();
+        router.refresh();
+        router.push(`/dashboard/${profile?.role}`);
+      }
+    } catch (err) {
+      console.error(err);
+      alert('An unexpected error occurred.');
+    }
   };
 
   const filteredItems = navItems.filter((item) =>
@@ -266,6 +291,33 @@ export default function Sidebar({ profile }: { profile: Profile }) {
       {/* Sign Out */}
       <Box sx={{ pb: 2 }}>
         <Divider sx={{ borderColor: '#262626', mb: 1 }} />
+        {profile?.org_id && (
+          <Tooltip title={collapsed ? 'Leave Organization' : ''} placement="right">
+            <ListItemButton
+              onClick={handleLeaveOrg}
+              sx={{
+                minHeight: 48,
+                justifyContent: collapsed ? 'center' : 'initial',
+                px: 2.5,
+                mx: 1,
+                mb: 0.5,
+                borderRadius: 2,
+                color: '#f87171',
+                '&:hover': { bgcolor: 'rgba(248,113,113,0.1)' },
+              }}
+            >
+              <ListItemIcon sx={{ minWidth: 0, mr: collapsed ? 0 : 2, color: '#f87171' }}>
+                <OrgIcon />
+              </ListItemIcon>
+              {!collapsed && (
+                <ListItemText
+                  primary="Leave Org"
+                  primaryTypographyProps={{ fontSize: 14, color: '#f87171' }}
+                />
+              )}
+            </ListItemButton>
+          </Tooltip>
+        )}
         <Tooltip title={collapsed ? 'Sign Out' : ''} placement="right">
           <ListItemButton
             onClick={signOut}

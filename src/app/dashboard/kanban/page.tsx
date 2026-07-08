@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { KanbanColumn, Profile, TaskAssigneeDetail } from '@/types';
 import KanbanBoardClient from '@/components/kanban/KanbanBoardClient';
+import RequireOrganization from '@/components/shared/RequireOrganization';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,8 +26,26 @@ export default async function KanbanPage() {
       supabase.from('profiles').select('*').eq('id', user!.id).single(),
     ]);
 
+  let columnsData = cols ?? [];
+
+  if (columnsData.length === 0 && user) {
+    const orgId = (profile as Profile)?.org_id;
+    const defaultCols = [
+      { title: 'To Do', color: '#6366f1', position: 0, created_by: user.id, org_id: orgId || null },
+      { title: 'In Progress', color: '#f59e0b', position: 1, created_by: user.id, org_id: orgId || null },
+      { title: 'Done', color: '#22c55e', position: 2, created_by: user.id, org_id: orgId || null },
+    ];
+    const { data: insertedCols } = await supabase
+      .from('kanban_columns')
+      .insert(defaultCols)
+      .select();
+    if (insertedCols) {
+      columnsData = insertedCols;
+    }
+  }
+
   type RawAssignee = { user_id: string; status: string; profile: Profile };
-  const enrichedCols = (cols ?? []).map((col) => ({
+  const enrichedCols = columnsData.map((col) => ({
     ...col,
     tasks: (tasks ?? [])
       .filter((t: { column_id: string }) => t.column_id === col.id)

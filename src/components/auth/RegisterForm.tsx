@@ -51,7 +51,7 @@ function getPasswordStrength(password: string): PasswordStrength {
 }
 
 export default function RegisterForm() {
-  const [tab, setTab] = useState<0 | 1>(0); // 0 = create org, 1 = join org
+  const [tab, setTab] = useState<0 | 1 | 2>(0); // 0 = create org, 1 = join org, 2 = personal mode
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
@@ -129,7 +129,7 @@ export default function RegisterForm() {
   };
 
   const handleTabChange = (_: React.SyntheticEvent, newVal: number) => {
-    setTab(newVal as 0 | 1);
+    setTab(newVal as 0 | 1 | 2);
     setError('');
     setInviteValid(null);
   };
@@ -217,8 +217,10 @@ export default function RegisterForm() {
       payload = { action: 'accept_invite', inviteToken, fullName, password };
     } else if (tab === 0) {
       payload = { action: 'create', orgName: orgName.trim(), fullName, email, password };
-    } else {
+    } else if (tab === 1) {
       payload = { action: 'join', inviteCode: inviteCode.trim().toUpperCase(), fullName, email, password };
+    } else {
+      payload = { action: 'register_personal', fullName, email, password };
     }
 
     const res = await fetch('/api/organizations', {
@@ -304,6 +306,7 @@ export default function RegisterForm() {
           >
             <Tab label="Create Organization" sx={{ textTransform: 'none', fontWeight: 600 }} />
             <Tab label="Join with Code" sx={{ textTransform: 'none', fontWeight: 600 }} />
+            <Tab label="Personal Mode" sx={{ textTransform: 'none', fontWeight: 600 }} />
           </Tabs>
         )}
 
