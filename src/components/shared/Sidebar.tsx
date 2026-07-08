@@ -4,7 +4,9 @@ import React, { useState, useEffect } from 'react';
 import {
   Drawer, Box, List, ListItem, ListItemButton, ListItemIcon,
   ListItemText, Typography, Avatar, Divider, IconButton, Tooltip,
-  Chip, Badge,
+  Chip, Badge, Dialog, DialogTitle, DialogContent, DialogActions,
+  Button, TextField, Alert, CircularProgress, MenuItem, Select,
+  FormControl, InputLabel,
 } from '@mui/material';
 import {
   Dashboard as DashboardIcon,
@@ -49,6 +51,12 @@ const navItems: NavItem[] = [
 export default function Sidebar({ profile }: { profile: Profile }) {
   const [collapsed, setCollapsed] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [lastAdminDialogOpen, setLastAdminDialogOpen] = useState(false);
+  const [eligibleMembers, setEligibleMembers] = useState<Profile[]>([]);
+  const [selectedMemberId, setSelectedMemberId] = useState('');
+  const [promotingAndLeaving, setPromotingAndLeaving] = useState(false);
+  const [promotionError, setPromotionError] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
   const router = useRouter();
   const pathname = usePathname();
   const supabase = createClient();
@@ -86,12 +94,48 @@ export default function Sidebar({ profile }: { profile: Profile }) {
   };
 
   const handleLeaveOrg = async () => {
-    const confirmLeave = window.confirm(
-      'Are you sure you want to leave your organization? You will lose access to all organization-specific features.'
-    );
-    if (!confirmLeave) return;
+    if (!profile?.org_id) return;
 
     try {
+      // 1. Fetch other admins to see if this user is the last remaining admin
+      const { data: admins, error: adminsError } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('org_id', profile.org_id)
+        .eq('role', 'admin');
+
+      if (adminsError) {
+        alert('Failed to verify organization administrators.');
+        return;
+      }
+
+      if (profile.role === 'admin' && (!admins || admins.length <= 1)) {
+        // Fetch eligible members to promote (role !== 'admin' and active)
+        const { data: members, error: membersError } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('org_id', profile.org_id)
+          .neq('role', 'admin')
+          .eq('is_active', true);
+
+        if (membersError) {
+          alert('Failed to retrieve eligible members for promotion.');
+          return;
+        }
+
+        setEligibleMembers(members ?? []);
+        setSelectedMemberId('');
+        setPromotionError('');
+        setLastAdminDialogOpen(true);
+        return;
+      }
+
+      // If not the last admin, proceed with standard confirmation
+      const confirmLeave = window.confirm(
+        'Are you sure you want to leave your organization? You will lose access to all organization-specific features.'
+      );
+      if (!confirmLeave) return;
+
       const res = await fetch('/api/organizations/leave', {
         method: 'POST',
       });
@@ -106,6 +150,55 @@ export default function Sidebar({ profile }: { profile: Profile }) {
     } catch (err) {
       console.error(err);
       alert('An unexpected error occurred.');
+    }
+  };
+
+  const handlePromoteAndLeave = async () => {
+    if (!selectedMemberId) {
+      setPromotionError('Please select a member to promote.');
+      return;
+    }
+
+    setPromotingAndLeaving(true);
+    setPromotionError('');
+
+    try {
+      // 1. Promote selected user to admin
+      const { error: promoteError } = await supabase
+        .from('profiles')
+        .update({ role: 'admin' })
+        .eq('id', selectedMemberId);
+
+      if (promoteError) {
+        setPromotionError(`Promotion failed: ${promoteError.message}`);
+        setPromotingAndLeaving(false);
+        return;
+      }
+
+      // 2. Perform the leave request
+      const res = await fetch('/api/organizations/leave', {
+        method: 'POST',
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        // Rollback promotion if leave fails (e.g. race condition or error)
+        const originalRole = eligibleMembers.find(m => m.id === selectedMemberId)?.role || 'ojt';
+        await supabase
+          .from('profiles')
+          .update({ role: originalRole })
+          .eq('id', selectedMemberId);
+
+        setPromotionError(json.error ?? 'Failed to leave organization after promotion.');
+        setPromotingAndLeaving(false);
+      } else {
+        setLastAdminDialogOpen(false);
+        await supabase.auth.refreshSession();
+        router.refresh();
+        router.push(`/dashboard/${profile?.role}`);
+      }
+    } catch (err: any) {
+      setPromotionError(err.message ?? 'An unexpected error occurred.');
+      setPromotingAndLeaving(false);
     }
   };
 
@@ -343,6 +436,137 @@ export default function Sidebar({ profile }: { profile: Profile }) {
           </ListItemButton>
         </Tooltip>
       </Box>
+
+      {/* Last Admin Leave Dialog */}
+      <Dialog
+        open={lastAdminDialogOpen}
+        onClose={() => !promotingAndLeaving && setLastAdminDialogOpen(false)}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            bgcolor: '#161616',
+            color: '#fff',
+            border: '1px solid #262626',
+          }
+        }}
+      >
+        <DialogTitle component="div" sx={{ borderBottom: '1px solid #262626', pb: 2, fontWeight: 700, fontSize: '1.25rem' }}>
+          Promote Administrator Before Leaving
+        </DialogTitle>
+
+        <DialogContent sx={{ p: 3 }}>
+          {promotionError && (
+            <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }}>
+              {promotionError}
+            </Alert>
+          )}
+
+          <Typography variant="body2" sx={{ color: '#a1a1aa', mb: 3, lineHeight: 1.6 }}>
+            Every organization must have at least one administrator. Since you are the only remaining administrator of this organization, you must promote another member to administrator before you can leave.
+          </Typography>
+
+          {eligibleMembers.length === 0 ? (
+            <Alert severity="warning" sx={{ borderRadius: 2 }}>
+              There are no other active members in this organization to promote. You cannot leave until you invite and onboard another member.
+            </Alert>
+          ) : (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
+              <TextField
+                fullWidth
+                size="small"
+                placeholder="Search members by name or email..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                slotProps={{
+                  input: {
+                    style: { color: '#fff' }
+                  }
+                }}
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    '& fieldset': { borderColor: '#262626' },
+                    '&:hover fieldset': { borderColor: '#52525b' },
+                    '&.Mui-focused fieldset': { borderColor: '#6366f1' },
+                  }
+                }}
+              />
+
+              <FormControl fullWidth>
+                <InputLabel id="promote-member-label" sx={{ color: '#a1a1aa' }}>Select Member *</InputLabel>
+                <Select
+                  labelId="promote-member-label"
+                  value={selectedMemberId}
+                  label="Select Member *"
+                  onChange={(e) => setSelectedMemberId(e.target.value)}
+                  sx={{
+                    color: '#fff',
+                    '.MuiOutlinedInput-notchedOutline': { borderColor: '#262626' },
+                    '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#52525b' },
+                    '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#6366f1' },
+                    '.MuiSvgIcon-root': { color: '#a1a1aa' },
+                  }}
+                  MenuProps={{
+                    PaperProps: {
+                      sx: {
+                        bgcolor: '#161616',
+                        color: '#fff',
+                        border: '1px solid #262626',
+                        '& .MuiMenuItem-root:hover': { bgcolor: '#262626' },
+                        '& .MuiMenuItem-root.Mui-selected': { bgcolor: 'rgba(99, 102, 241, 0.2)' },
+                      }
+                    }
+                  }}
+                >
+                  {eligibleMembers
+                    .filter(m => 
+                      m.full_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                      m.email.toLowerCase().includes(searchQuery.toLowerCase())
+                    )
+                    .map((member) => (
+                      <MenuItem key={member.id} value={member.id}>
+                        <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+                          <Typography variant="body2" fontWeight={600}>{member.full_name}</Typography>
+                          <Typography variant="caption" sx={{ color: '#a1a1aa' }}>
+                            {member.email} • Role: {roleLabel(member.role)}
+                          </Typography>
+                        </Box>
+                      </MenuItem>
+                    ))
+                  }
+                </Select>
+              </FormControl>
+            </Box>
+          )}
+        </DialogContent>
+
+        <DialogActions sx={{ p: 2.5, borderTop: '1px solid #262626', gap: 1 }}>
+          <Button
+            onClick={() => setLastAdminDialogOpen(false)}
+            disabled={promotingAndLeaving}
+            sx={{ color: '#a1a1aa' }}
+          >
+            Cancel
+          </Button>
+          {eligibleMembers.length > 0 && (
+            <Button
+              variant="contained"
+              onClick={handlePromoteAndLeave}
+              disabled={!selectedMemberId || promotingAndLeaving}
+              startIcon={promotingAndLeaving ? <CircularProgress size={18} color="inherit" /> : null}
+              sx={{
+                bgcolor: '#ef4444',
+                color: '#fff',
+                '&:hover': { bgcolor: '#dc2626' },
+                '&:disabled': { bgcolor: '#52525b', color: '#a1a1aa' }
+              }}
+            >
+              Promote & Leave
+            </Button>
+          )}
+        </DialogActions>
+      </Dialog>
     </Drawer>
   );
 }
