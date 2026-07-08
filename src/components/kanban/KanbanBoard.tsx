@@ -27,6 +27,11 @@ import TaskModal from './TaskModal';
 import ColumnDialog from './ColumnDialog';
 import TaskViewDialog from './TaskViewDialog';
 import TaskArchiveDialog from './TaskArchiveDialog';
+import {
+  isPersonalBoard,
+  canManageColumns as checkCanManageColumns,
+  canManageTasks as checkCanManageTasks,
+} from '@/lib/utils/kanbanScope';
 
 interface Props {
   initialColumns: KanbanColumn[];
@@ -57,9 +62,10 @@ export default function KanbanBoard({ initialColumns, initialOjts, initialProfil
   const supabase = createClient();
   const profile = initialProfile;
 
-  const canManage = profile?.role === 'admin' || profile?.role === 'supervisor';
-  const canManageColumns = !!profile?.org_id;
-  const isOjt = profile?.role === 'ojt';
+  const personal = isPersonalBoard(profile);
+  const canManage = checkCanManageTasks(profile);
+  const canManageColumns = checkCanManageColumns(profile);
+  const isOjt = !personal && profile?.role === 'ojt';
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
@@ -560,7 +566,7 @@ export default function KanbanBoard({ initialColumns, initialOjts, initialProfil
               </Badge>
             ) : null;
           })()}
-          {profile.role === 'admin' && (
+          {(profile.role === 'admin' || personal) && (
             <Button
               variant="outlined"
               startIcon={<ArchiveIcon />}

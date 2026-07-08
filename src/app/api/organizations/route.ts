@@ -138,6 +138,20 @@ export async function POST(request: NextRequest) {
       }
 
       return NextResponse.json({ success: true, role: invite.role });
+    } else if (action === 'register_personal') {
+      // 1. Create auth user with default role (ojt) and no organization
+      const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+        email: email.trim(),
+        password,
+        email_confirm: true,
+        user_metadata: { full_name: fullName.trim(), role: 'ojt' },
+      });
+
+      if (authError) {
+        return NextResponse.json({ error: authError.message }, { status: 400 });
+      }
+
+      return NextResponse.json({ success: true, role: 'ojt' });
     } else {
       return NextResponse.json({ error: 'Invalid action.' }, { status: 400 });
     }

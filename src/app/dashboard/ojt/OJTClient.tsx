@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Box, Grid, Typography } from '@mui/material';
+import { Box, Grid, Typography, Alert, Button } from '@mui/material';
 import {
   AccessTime as ClockIcon,
   CalendarToday as CalendarIcon,
@@ -15,6 +15,7 @@ import HoursProgress from '@/components/attendance/HoursProgress';
 import StatCard from '@/components/shared/StatCard';
 import { formatHours } from '@/lib/utils/format';
 import { Profile, Attendance, AttendanceSummary } from '@/types';
+import { useRouter } from 'next/navigation';
 
 interface Props {
   profile: Profile;
@@ -26,6 +27,7 @@ interface Props {
 export default function OJTClient({ profile, initialTodayRecord, initialSummary, initialRecords }: Props) {
   // useAttendance still provides refresh / real-time updates after clock in/out
   const { todayRecord, summary, refresh } = useAttendance(profile.id);
+  const router = useRouter();
 
   // Use initial data if the hook hasn't loaded yet
   const displayRecord = todayRecord ?? initialTodayRecord;
@@ -33,6 +35,33 @@ export default function OJTClient({ profile, initialTodayRecord, initialSummary,
 
   return (
     <Box sx={{ p: 3 }}>
+      {/* Org setup banner */}
+      {!profile.org_id && (
+        <Alert
+          severity="info"
+          sx={{
+            mb: 3,
+            borderRadius: 3,
+            bgcolor: 'rgba(99, 102, 241, 0.05)',
+            border: '1px solid rgba(99, 102, 241, 0.2)',
+            color: 'text.primary',
+            '& .MuiAlert-icon': { color: 'primary.main' }
+          }}
+          action={
+            <Button
+              color="primary"
+              size="small"
+              onClick={() => router.push('/onboarding')}
+              sx={{ fontWeight: 600, textTransform: 'none' }}
+            >
+              Set Up Now
+            </Button>
+          }
+        >
+          You are currently using the application in Personal Mode. Set up or join an organization to collaborate with your team.
+        </Alert>
+      )}
+
       {/* Header */}
       <Box sx={{ mb: 3 }}>
         <Typography variant="h4" fontWeight={800} color="text.primary">

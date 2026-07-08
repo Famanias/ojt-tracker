@@ -5,14 +5,14 @@ import { createClient } from '@/lib/supabase/client';
 import { Attendance, AttendanceSummary } from '@/types';
 import { format } from 'date-fns';
 
+const today = format(new Date(), 'yyyy-MM-dd');
+
 export function useAttendance(userId?: string) {
   const [todayRecord, setTodayRecord] = useState<Attendance | null>(null);
   const [history, setHistory] = useState<Attendance[]>([]);
   const [summary, setSummary] = useState<AttendanceSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const supabase = createClient();
-
-  const today = format(new Date(), 'yyyy-MM-dd');
 
   const fetchTodayRecord = useCallback(async () => {
     if (!userId) return;
