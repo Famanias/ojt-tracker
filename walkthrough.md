@@ -1,47 +1,25 @@
-# Walkthrough - Turnstile CAPTCHA Integration
+# Walkthrough — Forgot Password & Password Reset Flow
 
-Cloudflare Turnstile CAPTCHA has been successfully integrated into the application to protect the authentication system from automated bot abuse. Both the client-side login and registration forms, as well as the backend registration endpoint, are now protected.
+We have successfully implemented the complete Forgot Password flow in the Nexus platform using Supabase Auth, client-side validation rules, and Cloudflare Turnstile CAPTCHA.
 
 ## Changes Made
 
-### 1. Login Form (`LoginForm.tsx`)
-- Imported `Turnstile` component from `@marsidev/react-turnstile`.
-- Added state (`captchaToken`) and ref (`turnstileRef`) to manage the CAPTCHA widget lifecycle.
-- Embedded the Turnstile widget inside the form, styled and centered with a light theme matching the card design.
-- Enforced verification check on submit, showing a validation message if missing.
-- Passed `captchaToken` to `supabase.auth.signInWithPassword` in options.
-- Added automatic CAPTCHA reset on authentication errors to allow the user to try again.
+### 1. Components Added
 
-### 2. Register Form (`RegisterForm.tsx`)
-- Imported `Turnstile` component from `@marsidev/react-turnstile`.
-- Added state (`captchaToken`) and ref (`turnstileRef`) to manage the CAPTCHA widget lifecycle.
-- Embedded the Turnstile widget inside the form, styled and centered with a light theme.
-- Enforced verification check on submit, showing a validation message if missing.
-- Passed `captchaToken` inside the POST body request payload to `/api/organizations`.
-- Added automatic CAPTCHA reset on registration errors.
+- [ForgotPasswordForm.tsx](file:///d:/repos/ojt-tracker/src/components/auth/ForgotPasswordForm.tsx): The email form for requesting a reset link. Includes a Turnstile CAPTCHA widget, status alerts, and redirection logic.
+- [ResetPasswordForm.tsx](file:///d:/repos/ojt-tracker/src/components/auth/ResetPasswordForm.tsx): The password change form. It performs session verification on mount (validating the `code` query parameter or implicit token hash), checks password strength matching standard requirements (length, number, and special character), updates the password using Supabase, signs out the temporary recovery session, and redirects to `/login`.
 
-### 3. Backend Verification (`src/app/api/organizations/route.ts`)
-- Destructured `captchaToken` from request body payload.
-- Enforced and validated the CAPTCHA token against the Cloudflare siteverify endpoint using the Turnstile Secret Key.
-- Rejected request with `400` status code if the token is missing or fails verification.
+### 2. Routes Created
 
----
+- [page.tsx](file:///d:/repos/ojt-tracker/src/app/forgot-password/page.tsx): Route page rendering the `ForgotPasswordForm` wrapped inside a React `<Suspense>` boundary.
+- [page.tsx](file:///d:/repos/ojt-tracker/src/app/auth/reset-password/page.tsx): Route page rendering the `ResetPasswordForm` wrapped inside a React `<Suspense>` boundary.
+
+### 3. Middleware Config
+
+- [proxy.ts](file:///d:/repos/ojt-tracker/src/proxy.ts): Added `/forgot-password` and `/auth/reset-password` to the list of `publicRoutes` to prevent middleware from redirecting unauthenticated users back to `/login`.
 
 ## Verification Results
 
 ### Build Verification
-- Proactively ran `npm run build` to verify that everything compiles successfully and no TypeScript or bundling errors exist.
-- Verified that all pages and API routes compile and static generation completes successfully.
-
----
-
-## Local Development & Testing Guide
-
-To ensure the Turnstile CAPTCHA works properly on your local machine (`localhost:3000`), you have two options depending on your testing requirements:
-
-### Option A: Allow `localhost` on the Real Keys (Recommended for end-to-end testing)
-If you want to test the complete flow (including client-side login verified by Supabase Auth), you must register `localhost` on your Cloudflare dashboard:
-1. Log in to your **Cloudflare Dashboard** and navigate to **Turnstile**.
-2. Select your site widget (associated with Site Key `0x4AAAAAADzIE49x3Dv1vDCp`).
-3. Under the **Domains** settings, add `localhost` (and `127.0.0.1` if you test via IP).
-4. Save the settings. It may take a minute to propagate.
+- Proactively ran `npm run build` to verify there are no compilation or TypeScript errors.
+- Output: The Next.js application built successfully with compilation and static page generation completing with zero errors.

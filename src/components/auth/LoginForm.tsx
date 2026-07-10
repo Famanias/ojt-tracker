@@ -151,7 +151,7 @@ export default function LoginForm() {
           <Box sx={{ textAlign: 'right', mb: 3 }}>
             <Link
               href="/forgot-password"
-              style={{ fontSize: 13, fontWeight: 600, textDecoration: 'none' }}
+              style={{ fontSize: 13, fontWeight: 600, textDecoration: 'none', color: '#6366f1' }}
             >
               Forgot password?
             </Link>

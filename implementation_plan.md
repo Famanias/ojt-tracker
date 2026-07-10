@@ -1,121 +1,67 @@
-Implementation Task — Add Cloudflare Turnstile CAPTCHA to Supabase Authentication
-Objective
+# Implementation Plan — Forgot Password Flow
 
-Implement Cloudflare Turnstile CAPTCHA protection for the authentication system using Supabase Auth.
+This plan implements a secure, user-friendly "Forgot Password" and "Password Reset" flow in the Nexus platform using Supabase Auth. It aligns with existing layout, design systems (MUI), and security practices (such as Turnstile CAPTCHA).
 
-The implementation should follow Supabase's recommended approach while integrating cleanly with the existing authentication flow and UI.
+## User Review Required
 
-Requirements
-1. Supabase Configuration
+> [!IMPORTANT]
+> - **Turnstile CAPTCHA on Forgot Password Form**: We will integrate Cloudflare Turnstile CAPTCHA on the Forgot Password form to match the Login and Registration screens and prevent automated email spam attacks.
+> - **Email Templates**: The user must ensure that the Supabase password recovery email templates are configured to redirect back to the correct environment URL (e.g. `http://localhost:3000/auth/reset-password` for development and `https://nexxus.lol/auth/reset-password` for production). We will provide details on this configuration.
 
-Before implementing the frontend, ensure the following prerequisites are documented for manual configuration:
+## Open Questions
 
-Navigate to Supabase Dashboard
-Go to:
-Project Settings
-Authentication
-Bot and Abuse Protection
-Enable CAPTCHA Protection
-Select Cloudflare Turnstile as the provider
-Configure:
-Site Key
-Secret Key
-Save the configuration.
+- *None at this moment.* The requirements in `D:\repos\ojt-tracker\implementation_plan.md` are detailed and fully specify the validation, redirection rules, and user messages.
 
-Document any required environment variables.
+## Proposed Changes
 
-2. Install Required Dependency
+### Auth Component Layer
 
-Install the official React Turnstile component:
+We will add two new modular components under `src/components/auth/` to keep page routes thin and clean.
 
-npm install @marsidev/react-turnstile
-3. Frontend Integration
+---
 
-Locate every authentication form that accepts user credentials, including:
+#### [NEW] [ForgotPasswordForm.tsx](file:///d:/repos/ojt-tracker/src/components/auth/ForgotPasswordForm.tsx)
+- Contains the email form, form validations, and calls `supabase.auth.resetPasswordForEmail`.
+- Reuses `AuthPageShell`, `AuthCard`, `InputField`, `PrimaryButton`, and `AuthFooter`.
+- Includes the `Turnstile` CAPTCHA verification widget.
 
-Sign Up
-Sign In
-Password Reset (if supported)
+#### [NEW] [ResetPasswordForm.tsx](file:///d:/repos/ojt-tracker/src/components/auth/ResetPasswordForm.tsx)
+- Handles detecting the recovery session when loading (supporting both PKCE query code parameter and implicit hash/onAuthStateChange).
+- Displays validation messages if the link is expired or invalid.
+- Reuses `PasswordField` and `PrimaryButton`.
+- Validates the password strength matching the exact criteria used in `RegisterForm`: minimum 8 characters, at least 1 number, and at least 1 special character.
+- Calls `supabase.auth.updateUser({ password })` and then automatically logs out the temporary recovery session so the user can log in with their new credentials.
 
-Integrate the Turnstile widget into each applicable form.
+---
 
-The implementation should:
+### App Routes Layer
 
-render the Turnstile widget
-retrieve the verification token after successful completion
-store the token in component state
-prevent form submission until a valid token exists
-gracefully handle expired or invalid tokens
-reset the widget after authentication errors when appropriate
-4. Supabase Authentication
+We will register the new pages using Next.js App Router folders.
 
-Pass the CAPTCHA token to every supported Supabase authentication request.
+---
 
-Example:
+#### [NEW] [page.tsx](file:///d:/repos/ojt-tracker/src/app/forgot-password/page.tsx)
+- Imports `ForgotPasswordForm` and wraps it in a `<Suspense>` boundary to prevent build deoptimization.
 
-await supabase.auth.signUp({
-  email,
-  password,
-  options: {
-    captchaToken,
-  },
-});
+#### [NEW] [page.tsx](file:///d:/repos/ojt-tracker/src/app/auth/reset-password/page.tsx)
+- Imports `ResetPasswordForm` and wraps it in a `<Suspense>` boundary to prevent build deoptimization.
 
-Apply the same approach wherever Supabase supports captchaToken.
+---
 
-5. User Experience
+## Verification Plan
 
-The CAPTCHA implementation should:
+### Automated Tests / Type Checking
+We will build the Next.js application to verify there are no compilation or TypeScript errors.
+- Run `npm run build` or `npx tsc`
 
-match the application's existing design
-avoid unnecessary layout shifts
-display clear validation messages if verification is missing
-remain responsive on desktop and mobile
-support light and dark themes if applicable
-
-6. Environment Variables (I have already set this up)
-
-NEXT_PUBLIC_TURNSTILE_SITE_KEY=...
-
-additional (this is already configured in supabase so you might not need this, only including it for your reference):
-NEXT_PUBLIC_TURNSTILE_SECRET_KEY=... 
-
-Never hardcode the site key or secret key into the source code.
-
-7. Local Development
-
-Document any required localhost configuration, including:
-
-adding localhost to the Cloudflare Turnstile allowlist
-required environment variables
-any Supabase configuration needed for local testing
-Validation Checklist
-
-Verify the following scenarios:
-
-CAPTCHA renders successfully.
-Users cannot submit authentication forms without completing the CAPTCHA.
-Successful verification produces a valid captchaToken.
-Authentication succeeds when a valid token is supplied.
-Invalid or expired tokens are handled gracefully.
-Authentication errors reset or refresh the CAPTCHA when necessary.
-Existing authentication functionality continues to work without regressions.
-Deliverables
-
-Provide:
-
-A summary of the implementation approach.
-All modified files.
-Any new dependencies.
-Required environment variables.
-Manual Supabase configuration steps.
-Any additional setup required for Cloudflare Turnstile.
-A brief explanation of how the CAPTCHA flow integrates with Supabase Auth.
-
-Constraints
-
-Follow Supabase's official CAPTCHA integration guidelines.
-Use the @marsidev/react-turnstile package.
-Keep the implementation modular and reusable.
-Do not break the existing authentication flow.
-Avoid duplicate CAPTCHA logic across components; extract reusable functionality where appropriate.
+### Manual Verification
+1. **Request Reset**:
+   - Go to `/forgot-password`.
+   - Submit a valid email format without Turnstile -> Expect validation error.
+   - Complete Turnstile, submit email -> Expect success screen.
+2. **Invalid Reset Link**:
+   - Navigate to `/auth/reset-password` directly -> Expect "Reset Link Invalid" with "Request New Link" button.
+3. **Valid Reset Link**:
+   - Simulate a valid reset flow by exchanging a code or click the email link generated by Supabase.
+   - Enter invalid passwords (short, missing numbers/special characters) -> Expect strength feedback and submit button validation error.
+   - Enter valid matching passwords -> Expect "Password updated successfully" and redirect to `/login` after 3 seconds.

@@ -67,7 +67,17 @@ export async function proxy(request: NextRequest) {
   };
 
   const isInviteRoute = pathname.startsWith('/invite/');
-  const publicRoutes = ['/', '/login', '/register', '/docs', '/privacy', '/terms', '/contact'];
+  const publicRoutes = [
+    '/',
+    '/login',
+    '/register',
+    '/docs',
+    '/privacy',
+    '/terms',
+    '/contact',
+    '/forgot-password',
+    '/auth/reset-password',
+  ];
   if (publicRoutes.includes(pathname) || isInviteRoute) {
     if (user && !isInviteRoute && (pathname === '/login' || pathname === '/register' || pathname === '/')) {
       return redirectWithCookies(new URL(`/dashboard/${role}`, request.url));
