@@ -17,8 +17,8 @@ export async function POST(request: NextRequest) {
       .eq('id', user.id)
       .single();
 
-    if (!profile || !profile.org_id) {
-      return NextResponse.json({ error: 'Forbidden: user has no organization.' }, { status: 403 });
+    if (!profile) {
+      return NextResponse.json({ error: 'Forbidden: user not found.' }, { status: 403 });
     }
 
     const body = await request.json();
@@ -28,11 +28,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing column title.' }, { status: 400 });
     }
 
-    // Find the highest position of columns in this organization
-    const { data: columns, error: fetchError } = await supabase
+    // Find the highest position of columns in this scope
+    const highestPosQuery = supabase
       .from('kanban_columns')
-      .select('position')
-      .eq('org_id', profile.org_id)
+      .select('position');
+      
+    if (profile.org_id) {
+      highestPosQuery.eq('org_id', profile.org_id);
+    } else {
+      highestPosQuery.is('org_id', null).eq('created_by', profile.id);
+    }
+
+    const { data: columns, error: fetchError } = await highestPosQuery
       .order('position', { ascending: false })
       .limit(1);
 
@@ -50,7 +57,7 @@ export async function POST(request: NextRequest) {
         color: color || '#6366f1',
         position: nextPosition,
         created_by: profile.id,
-        org_id: profile.org_id,
+        org_id: profile.org_id || null,
       })
       .select()
       .single();

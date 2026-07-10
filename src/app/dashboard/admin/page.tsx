@@ -22,7 +22,7 @@ export default async function AdminDashboard() {
         .gte('date', monthStart)
         .lte('date', monthEnd)
         .order('date', { ascending: false }),
-      supabase.from('site_settings').select('*').limit(1).single(),
+      supabase.from('site_settings').select('*').limit(1).maybeSingle(),
     ]);
 
   const total_hours = (allHours ?? []).reduce((a: number, r: { total_hours: number | null }) => a + (r.total_hours ?? 0), 0);

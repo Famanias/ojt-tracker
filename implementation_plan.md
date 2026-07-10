@@ -1,72 +1,318 @@
-# Fix Email Invitation Flow and Link URLs in Production
+Optional Organization Membership & Leaving Organizations (Revised)
 
-This plan outlines the root cause and proposed fixes for the issue where email invitations work correctly on localhost but fail silently in production (reporting success but never sending emails via Resend). It also addresses generating correct production URLs for invitation links instead of `http://localhost:3000`.
+This implementation enables Personal Mode, allowing users to register, sign in, and use personal features without belonging to an organization. Organization membership becomes optional and is only required when accessing organization-specific functionality.
 
-## User Review Required
+The implementation avoids introducing additional user state by relying solely on the existing nullable profiles.org_id. If org_id is NULL, the application treats the user as operating in Personal Mode.
 
-> [!IMPORTANT]
-> The environment variable `RESEND_API_KEY` must be configured in your production hosting platform dashboard. If it is missing, invitations will now fail with a visible warning/error in production rather than silently succeeding.
->
-> Additionally, it is highly recommended to configure `NEXT_PUBLIC_SITE_URL` (e.g. `https://nexus-ojt.vercel.app` or your custom domain) in the production dashboard so that all links generated in emails point to the correct production domain.
+Design Principles
+Personal Mode
 
-## Root Cause Analysis
+A user with profiles.org_id = NULL is considered to be in Personal Mode.
 
-1. **Module-level Client Initialization & Caching**:
-   In `src/lib/services/email.ts`, the `Resend` client was initialized at the module level:
-   ```typescript
-   const resendApiKey = process.env.RESEND_API_KEY;
-   const resend = resendApiKey && resendApiKey !== 'placeholder' && !resendApiKey.startsWith('your_')
-     ? new Resend(resendApiKey)
-     : null;
-   ```
-   During Next.js production building or startup initialization, if `process.env.RESEND_API_KEY` was missing, `resend` was permanently cached as `null` for the lifetime of the process/serverless container.
-2. **Silent Failure Masking**:
-   When `resend` was `null`, `sendInvitationEmail` returned `{ success: true, error: '...' }` (mimicking successful mock delivery for development).
-   Since `success: true` was returned, the API routes (`/api/invitations` and `/api/invitations/[id]`) bypassed the error/warning logic and returned a `200 OK` response to the client. The frontend assumed success, surfaced no errors, and logged the invitation as sent, while the email was actually printed to the server logs and never sent to Resend.
-3. **Host Origin Resolution**:
-   Invitation links were built using `request.nextUrl.origin`. Behind reverse proxies, API Gateways, or Docker/serverless routers, this can resolve to `http://localhost:3000` or deployment-specific subdomains instead of the user-facing custom domain.
+Personal Mode allows:
 
-## Proposed Changes
+Authentication
+Dashboard access
+Personal attendance (clock in/out)
+Profile management
+Personal statistics
+Any future personal-only features
 
-### 1. New Site URL Utility
-We will create a helper to dynamically determine the correct frontend origin.
+Organization membership is only required for organization-specific functionality.
 
-#### [NEW] [url.ts](file:///d:/repos/ojt-tracker/src/lib/utils/url.ts)
-- Implement `getSiteUrl(request?: NextRequest): string`.
-- Prioritize `NEXT_PUBLIC_SITE_URL` and `SITE_URL` environment variables.
-- Fall back to checking request headers (`x-forwarded-proto` and `x-forwarded-host`/`host`) if provided.
-- Fall back to standard Vercel environment variables (`VERCEL_PROJECT_PRODUCTION_URL`, `VERCEL_URL`).
-- Fall back to `http://localhost:3000` for development.
+Organization Mode
 
-### 2. Email Service
-#### [MODIFY] [email.ts](file:///d:/repos/ojt-tracker/src/lib/services/email.ts)
-- Initialize `Resend` dynamically/lazily inside the email sending function instead of at the module level.
-- Log details of the Resend client initialization (safely obscuring the key).
-- In production (`process.env.NODE_ENV === 'production'`), return `success: false` if `RESEND_API_KEY` is missing or invalid, so that failures are correctly surfaced.
-- Retain the mock console-logging fallback only for development/test environments.
+A user with a valid profiles.org_id has access to organization features such as:
 
-### 3. Invitation API Routes
-#### [MODIFY] [route.ts](file:///d:/repos/ojt-tracker/src/app/api/invitations/route.ts)
-- Import `getSiteUrl` from `@/lib/utils/url`.
-- Use `getSiteUrl(request)` to generate the invitation link instead of `request.nextUrl.origin`.
+Kanban
+Reports
+User Management
+Site Settings
+Organization Members
+Organization Analytics
+Future organization-specific modules
+User Review Required
 
-#### [MODIFY] [route.ts](file:///d:/repos/ojt-tracker/src/app/api/invitations/[id]/route.ts)
-- Import `getSiteUrl` from `@/lib/utils/url`.
-- Use `getSiteUrl(request)` to generate the invitation link instead of `request.nextUrl.origin`.
+[!IMPORTANT]
+This project already uses proxy.ts instead of middleware.ts. Do not create, modify, or reintroduce middleware.ts. All request interception and route protection must continue to use the existing proxy.ts implementation to maintain a single source of truth for authentication.
 
----
+[!IMPORTANT]
+The current database schema already supports nullable org_id values in profiles and attendance, so no database migrations are required.
 
-## Verification Plan
+This implementation intentionally does not introduce any additional onboarding state (such as user_metadata.onboarding_skipped). The single source of truth is profiles.org_id.
 
-### Automated Tests
-- Build the Next.js project to ensure there are no compilation issues:
-  ```powershell
-  npm run build
-  ```
+If org_id is NULL, the user is simply operating in Personal Mode.
 
-### Manual Verification
-- Simulate a missing key in development to verify that it outputs the mock log and returns success in development mode.
-- Simulate production mode (temporarily set `process.env.NODE_ENV === 'production'`) and check that:
-  - If `RESEND_API_KEY` is missing, it returns `success: false` and the UI shows the error/warning.
-  - If `RESEND_API_KEY` is present, it uses the key and makes the Resend API request successfully.
-- Verify invitation links are constructed correctly using `NEXT_PUBLIC_SITE_URL` or fallback values.
+Proposed Changes
+Component: Authentication & Navigation
+[MODIFY] dashboard/layout.tsx
+
+Revise the dashboard authentication flow so that any authenticated user can access the dashboard.
+
+The dashboard should no longer require organization membership.
+
+Responsibilities:
+
+Verify authentication
+Load user profile
+Do not redirect because org_id is NULL
+
+[IMPORTANT]
+
+Do not introduce or modify middleware.ts.
+
+This project already uses proxy.ts for request interception and authentication routing. All authentication and route protection changes should be implemented within the existing proxy.ts architecture. Do not create a new middleware.ts, migrate logic to middleware.ts, or split authentication logic between the two files.
+
+[MODIFY] proxy.ts
+
+Audit the existing route protection logic and remove any checks that assume organization membership is mandatory.
+
+The proxy should only be responsible for:
+
+Verifying authentication
+Protecting authenticated routes
+Redirecting unauthenticated users to the login page
+Preserving existing authentication behavior
+
+The proxy must not redirect authenticated users simply because profile.org_id is NULL.
+
+[MODIFY] auth/callback/route.ts
+
+Simplify the post-login flow.
+
+Authenticated users should always proceed to the dashboard regardless of organization membership.
+
+Component: Organization Permission Wrapper
+[NEW] RequireOrganization.tsx
+
+Create a reusable wrapper component responsible for enforcing organization membership.
+
+Responsibilities:
+
+Detect whether profile.org_id exists
+Render children if the user belongs to an organization
+Otherwise display the reusable OrgRequiredPlaceholder
+
+Example usage:
+
+<RequireOrganization>
+    <KanbanBoard />
+</RequireOrganization>
+
+This centralizes organization access control and prevents duplicated checks throughout the application.
+
+Component: Organization Placeholder
+[NEW] OrgRequiredPlaceholder.tsx
+
+Create a reusable placeholder page displayed whenever a Personal Mode user attempts to access an organization-only feature.
+
+The component should include:
+
+Friendly explanation
+"Create Organization"
+"Join Organization"
+Link back to Dashboard
+
+The placeholder should be reusable across all organization pages.
+
+Component: Organization Pages
+
+Wrap organization-only pages using RequireOrganization.
+
+[MODIFY] KanbanBoard.tsx
+
+Wrap Kanban content with RequireOrganization.
+
+[MODIFY] ReportsClient.tsx
+
+Wrap reports with RequireOrganization.
+
+[MODIFY] UsersClient.tsx
+
+Wrap user management with RequireOrganization.
+
+[MODIFY] SettingsClient.tsx
+
+Wrap organization settings with RequireOrganization.
+
+[MODIFY] Future organization pages
+
+Any future organization-only feature should use the same wrapper rather than implementing its own permission logic.
+
+Component: Dashboard Experience
+[MODIFY]
+OJTClient.tsx
+AdminDashboardClient.tsx
+SupervisorClient.tsx
+
+When org_id is NULL, display a friendly Personal Mode banner explaining:
+
+You're currently using the application in Personal Mode.
+
+Provide quick actions:
+
+Create Organization
+Join Organization
+
+Do not block dashboard usage.
+
+Component: Attendance
+[MODIFY] ClockButton.tsx
+
+Support Personal Attendance Mode.
+
+When org_id is NULL:
+
+Skip organization site lookup
+Skip organization GPS radius validation
+Record attendance normally
+Clearly label attendance as Personal Mode if appropriate
+
+When the user belongs to an organization, preserve the existing GPS validation behavior.
+
+Component: Leaving Organizations
+[NEW] /api/organizations/leave
+
+Create a secure API endpoint for leaving an organization.
+
+Responsibilities:
+
+Verify authentication
+Verify current organization membership
+Remove organization relationship
+Clear organization-specific cached state if applicable
+Return updated profile
+
+The endpoint should not simply update org_id.
+
+It should enforce organization rules.
+
+Leaving Rules
+
+Define explicit behavior.
+
+Members
+
+May leave freely.
+
+Supervisors
+
+May leave.
+Any organization-specific assignments should be handled gracefully.
+
+Administrators
+
+May leave only if another administrator remains.
+
+Last Administrator
+
+Cannot leave until ownership/admin privileges are transferred.
+
+This prevents orphaned organizations.
+
+[MODIFY] Sidebar.tsx
+
+When the user belongs to an organization:
+
+Display:
+
+Leave Organization
+
+After confirmation:
+
+Call /api/organizations/leave
+Return the user to the Dashboard
+Display Personal Mode banner
+
+Do not force onboarding again.
+
+Component: Onboarding
+[MODIFY] OnboardingClient.tsx
+
+Simplify onboarding.
+
+Users should have three choices:
+
+Create Organization
+Join Organization
+Continue in Personal Mode
+
+Choosing Personal Mode simply navigates to the Dashboard.
+
+No metadata or onboarding flags need to be stored.
+
+If a user already belongs to an organization, redirect directly to the dashboard.
+
+Component: Permission Utilities
+[NEW] organization.ts
+
+Create reusable helper utilities such as:
+
+isOrganizationMember(profile)
+
+isPersonalMode(profile)
+
+canAccessOrganizationFeatures(profile)
+
+Future development should use these helpers instead of repeatedly checking:
+
+profile.org_id === null
+
+This keeps permission logic centralized and easier to maintain.
+
+Verification Plan
+Automated Verification
+npm run lint
+
+npm run build
+Manual Verification
+1. New User Flow
+Register a new account.
+Choose Continue in Personal Mode.
+Verify access to the dashboard.
+Verify attendance works.
+Verify Personal Mode banner is shown.
+2. Organization Feature Protection
+
+Visit:
+
+Kanban
+Reports
+User Management
+Site Settings
+
+Verify each displays the reusable Organization Required placeholder.
+
+3. Join or Create Organization
+
+Create or join an organization.
+
+Verify:
+
+Personal Mode banner disappears.
+Organization pages become accessible.
+GPS attendance enforcement resumes.
+4. Leave Organization
+
+Leave the organization.
+
+Verify:
+
+profiles.org_id becomes NULL.
+Dashboard remains accessible.
+Personal Mode banner appears.
+Organization pages become inaccessible.
+Attendance continues in Personal Mode.
+5. Administrator Rules
+
+Verify:
+
+Non-admins can leave normally.
+Admins with other admins can leave.
+The last remaining administrator cannot leave until another administrator exists.
+6. Middleware & Authentication
+
+Verify:
+
+Authenticated users without an organization are never redirected away from the dashboard.
+Organization restrictions are enforced only by RequireOrganization, not by global authentication logic.
