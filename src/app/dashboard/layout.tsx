@@ -15,11 +15,8 @@ export default async function DashboardLayout({
   } = await supabase.auth.getUser();
 
   if (!user) {
-    console.log("LAYOUT: No user session found, redirecting to login");
     redirect('/login');
   }
-
-  console.log("LAYOUT: User fetched, ID is:", user.id);
 
   const [profileResponse] = await Promise.all([
     supabase
@@ -32,15 +29,7 @@ export default async function DashboardLayout({
   const profile = profileResponse.data;
   const profileError = profileResponse.error;
 
-  console.log("LAYOUT: Profile response:", { 
-    hasProfile: !!profile, 
-    orgId: profile?.org_id, 
-    role: profile?.role, 
-    error: profileError 
-  });
-
   if (!profile || profileError) {
-    console.log("Profile error or missing profile:", profileError);
     return (
       <div style={{
         display: 'flex',
