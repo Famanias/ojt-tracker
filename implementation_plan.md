@@ -1,67 +1,88 @@
-# Implementation Plan — Forgot Password Flow
+Fix Password Recovery Redirect Flow (Supabase PKCE)
+Problem
 
-This plan implements a secure, user-friendly "Forgot Password" and "Password Reset" flow in the Nexus platform using Supabase Auth. It aligns with existing layout, design systems (MUI), and security practices (such as Turnstile CAPTCHA).
+The password recovery flow has the same issue as the Google OAuth flow previously had.
 
-## User Review Required
+Current Flow
+User clicks Forgot Password.
+User submits their email address.
+Supabase sends a password recovery email.
+The email contains a link similar to:
+https://<project>.supabase.co/auth/v1/verify?token=<pkce_token>&type=recovery&redirect_to=https://nexxus.lol
+The user clicks Reset Password.
+Supabase verifies the recovery token.
+The user is redirected to:
+https://www.nexxus.lol/?code=<authorization_code>
 
-> [!IMPORTANT]
-> - **Turnstile CAPTCHA on Forgot Password Form**: We will integrate Cloudflare Turnstile CAPTCHA on the Forgot Password form to match the Login and Registration screens and prevent automated email spam attacks.
-> - **Email Templates**: The user must ensure that the Supabase password recovery email templates are configured to redirect back to the correct environment URL (e.g. `http://localhost:3000/auth/reset-password` for development and `https://nexxus.lol/auth/reset-password` for production). We will provide details on this configuration.
+instead of the password reset page.
 
-## Open Questions
+The browser remains on the landing page with the authorization code in the URL, and the password reset flow never continues.
 
-- *None at this moment.* The requirements in `D:\repos\ojt-tracker\implementation_plan.md` are detailed and fully specify the validation, redirection rules, and user messages.
+Expected Flow
 
-## Proposed Changes
+The recovery flow should complete automatically.
 
-### Auth Component Layer
+User
+    ↓
+Forgot Password
+    ↓
+Supabase sends recovery email
+    ↓
+User clicks recovery link
+    ↓
+Supabase verifies recovery token
+    ↓
+OAuth/PKCE callback exchanges the authorization code
+    ↓
+Recovery session established
+    ↓
+Redirect to
+/auth/reset-password
+    ↓
+User enters a new password
+    ↓
+Password updated successfully
+    ↓
+Redirect to Login
 
-We will add two new modular components under `src/components/auth/` to keep page routes thin and clean.
+The user should never remain on:
 
----
+/?code=<authorization_code>
+Investigation Tasks
 
-#### [NEW] [ForgotPasswordForm.tsx](file:///d:/repos/ojt-tracker/src/components/auth/ForgotPasswordForm.tsx)
-- Contains the email form, form validations, and calls `supabase.auth.resetPasswordForEmail`.
-- Reuses `AuthPageShell`, `AuthCard`, `InputField`, `PrimaryButton`, and `AuthFooter`.
-- Includes the `Turnstile` CAPTCHA verification widget.
+Perform a complete investigation before implementing any fixes.
 
-#### [NEW] [ResetPasswordForm.tsx](file:///d:/repos/ojt-tracker/src/components/auth/ResetPasswordForm.tsx)
-- Handles detecting the recovery session when loading (supporting both PKCE query code parameter and implicit hash/onAuthStateChange).
-- Displays validation messages if the link is expired or invalid.
-- Reuses `PasswordField` and `PrimaryButton`.
-- Validates the password strength matching the exact criteria used in `RegisterForm`: minimum 8 characters, at least 1 number, and at least 1 special character.
-- Calls `supabase.auth.updateUser({ password })` and then automatically logs out the temporary recovery session so the user can log in with their new credentials.
+Verify:
 
----
+whether the password recovery email is using the correct redirect_to URL
+whether the recovery link should point to /auth/callback instead of the landing page
+whether the existing PKCE callback exchanges the authorization code correctly
+whether the callback distinguishes between Google OAuth and password recovery flows
+whether the callback redirects all successful recovery sessions to /auth/reset-password
+whether session cookies are written before the redirect occurs
+whether middleware correctly recognizes the recovery session
+whether any redirects send users back to the landing page after the session is established
 
-### App Routes Layer
+Compare the password recovery flow with the already-fixed Google OAuth flow and reuse the same authentication architecture wherever possible.
 
-We will register the new pages using Next.js App Router folders.
+Implementation Requirements
+Reuse the existing PKCE callback route instead of creating a separate recovery callback unless absolutely necessary.
+Do not duplicate authentication logic.
+Ensure the authorization code is exchanged exactly once.
+Preserve all session cookies during redirects.
+Ensure password recovery and Google OAuth share the same callback infrastructure where appropriate.
+Redirect authenticated recovery sessions directly to /auth/reset-password.
+Remove the authorization code from the browser URL after the session has been established.
+Success Criteria
 
----
+The implementation is successful when:
 
-#### [NEW] [page.tsx](file:///d:/repos/ojt-tracker/src/app/forgot-password/page.tsx)
-- Imports `ForgotPasswordForm` and wraps it in a `<Suspense>` boundary to prevent build deoptimization.
+A password recovery email is sent successfully.
+Clicking the recovery link immediately establishes a valid recovery session.
+The user is redirected directly to /auth/reset-password.
+The authorization code is exchanged automatically and does not remain in the URL.
+The user can set a new password without additional authentication steps.
+Existing Google OAuth functionality continues to work without regressions.
+The callback route remains reusable for all PKCE authentication flows (Google OAuth, password recovery, and future providers).
 
-#### [NEW] [page.tsx](file:///d:/repos/ojt-tracker/src/app/auth/reset-password/page.tsx)
-- Imports `ResetPasswordForm` and wraps it in a `<Suspense>` boundary to prevent build deoptimization.
-
----
-
-## Verification Plan
-
-### Automated Tests / Type Checking
-We will build the Next.js application to verify there are no compilation or TypeScript errors.
-- Run `npm run build` or `npx tsc`
-
-### Manual Verification
-1. **Request Reset**:
-   - Go to `/forgot-password`.
-   - Submit a valid email format without Turnstile -> Expect validation error.
-   - Complete Turnstile, submit email -> Expect success screen.
-2. **Invalid Reset Link**:
-   - Navigate to `/auth/reset-password` directly -> Expect "Reset Link Invalid" with "Request New Link" button.
-3. **Valid Reset Link**:
-   - Simulate a valid reset flow by exchanging a code or click the email link generated by Supabase.
-   - Enter invalid passwords (short, missing numbers/special characters) -> Expect strength feedback and submit button validation error.
-   - Enter valid matching passwords -> Expect "Password updated successfully" and redirect to `/login` after 3 seconds.
+This version encourages the AI to diagnose first and implement second, while emphasizing reuse of your existing OAuth callback rather than introducing separate, potentially inconsistent authentication flows.

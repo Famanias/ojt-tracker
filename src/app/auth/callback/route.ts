@@ -48,7 +48,7 @@ export async function GET(request: Request) {
       }
     );
 
-    const { error: authError } = await supabase.auth.exchangeCodeForSession(code);
+    const { data: exchangeData, error: authError } = await supabase.auth.exchangeCodeForSession(code);
     
     if (!authError) {
       const { data: { user } } = await supabase.auth.getUser();
@@ -79,9 +79,24 @@ export async function GET(request: Request) {
           return redirectErrorResponse;
         }
 
+        // Check if this is a recovery session
+        let isRecovery = false;
+        const session = exchangeData?.session ?? (await supabase.auth.getSession()).data.session;
+        if (session) {
+          try {
+            const token = session.access_token;
+            const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
+            isRecovery = payload.amr?.some((a: any) => a.method === 'recovery') ?? false;
+          } catch (e) {
+            console.error('[Callback] Failed to parse JWT amr claim:', e);
+          }
+        }
+
         // Determine destination
         let dest = `${origin}/dashboard/${profile.role}`;
-        if (next) {
+        if (isRecovery) {
+          dest = `${origin}/auth/reset-password`;
+        } else if (next) {
           dest = `${origin}${next}`;
         }
 

@@ -7,6 +7,22 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // Intercept any requests carrying an auth 'code' that are not already pointing to the callback
+  const code = request.nextUrl.searchParams.get('code');
+  if (code) {
+    const { pathname } = request.nextUrl;
+    if (pathname !== '/auth/callback') {
+      const callbackUrl = new URL('/auth/callback', request.url);
+      callbackUrl.search = request.nextUrl.search;
+      
+      // If landing on reset-password directly, set next parameter to preserve destination
+      if (!request.nextUrl.searchParams.has('next') && pathname === '/auth/reset-password') {
+        callbackUrl.searchParams.set('next', '/auth/reset-password');
+      }
+      return NextResponse.redirect(callbackUrl);
+    }
+  }
+
   let supabaseResponse = NextResponse.next({ request });
 
   const rawUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
