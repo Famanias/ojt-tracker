@@ -178,7 +178,7 @@ export default function RegisterForm() {
     e.preventDefault();
     setError('');
 
-    if (!captchaToken) {
+    if (process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY && !captchaToken) {
       setError('Please complete the CAPTCHA verification.');
       return;
     }
@@ -457,22 +457,28 @@ export default function RegisterForm() {
           />
 
           <Box sx={{ mb: 3, display: 'flex', justifyContent: 'center', minHeight: '65px' }}>
-            <Turnstile
-              ref={turnstileRef}
-              siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || ''}
-              onSuccess={(token) => setCaptchaToken(token)}
-              onExpire={() => {
-                setCaptchaToken(null);
-                setError('CAPTCHA verification expired. Please verify again.');
-              }}
-              onError={() => {
-                setCaptchaToken(null);
-                setError('CAPTCHA verification failed. Please try again.');
-              }}
-              options={{
-                theme: 'light',
-              }}
-            />
+            {process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ? (
+              <Turnstile
+                ref={turnstileRef}
+                siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY}
+                onSuccess={(token) => setCaptchaToken(token)}
+                onExpire={() => {
+                  setCaptchaToken(null);
+                  setError('CAPTCHA verification expired. Please verify again.');
+                }}
+                onError={() => {
+                  setCaptchaToken(null);
+                  setError('CAPTCHA verification failed. Please try again.');
+                }}
+                options={{
+                  theme: 'light',
+                }}
+              />
+            ) : (
+              <Typography color="error" variant="body2" sx={{ alignSelf: 'center', textAlign: 'center' }}>
+                CAPTCHA configuration error: Turnstile Site Key is missing.
+              </Typography>
+            )}
           </Box>
 
           <PrimaryButton loading={loading}>Create Account</PrimaryButton>
