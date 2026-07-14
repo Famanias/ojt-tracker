@@ -14,6 +14,7 @@ import { format } from 'date-fns';
 import StatCard from '@/components/shared/StatCard';
 import { People as PeopleIcon, AccessTime as ClockIcon, TrendingUp as TrendIcon } from '@mui/icons-material';
 import DateRangePickerButton from '@/components/shared/DateRangePickerButton';
+import { emitClientEvent } from '@/lib/automation/client-emitter';
 
 interface OJTReport {
   profile: Profile;
@@ -116,6 +117,14 @@ export default function ReportsClient({ initialReports }: Props) {
     a.href = url;
     a.download = `report-${isAllTime ? 'all-time' : `${dateFrom}-to-${dateTo}`}.csv`;
     a.click();
+
+    // Emit report.generated event
+    emitClientEvent('report.generated', {
+      reportType: 'csv_export',
+      dateFrom: isAllTime ? undefined : dateFrom,
+      dateTo: isAllTime ? undefined : dateTo,
+      recordCount: reports.length,
+    });
   };
 
   return (

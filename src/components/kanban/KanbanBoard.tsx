@@ -32,6 +32,7 @@ import {
   canManageColumns as checkCanManageColumns,
   canManageTasks as checkCanManageTasks,
 } from '@/lib/utils/kanbanScope';
+import { emitClientEvent } from '@/lib/automation/client-emitter';
 
 interface Props {
   initialColumns: KanbanColumn[];
@@ -390,10 +391,19 @@ export default function KanbanBoard({ initialColumns, initialOjts, initialProfil
   };
 
   const archiveTask = async (taskId: string) => {
+    const task = findTaskById(taskId);
     await supabase
       .from('kanban_tasks')
       .update({ archived_at: new Date().toISOString(), archived_by: profile.id })
       .eq('id', taskId);
+
+    // Emit task.deleted event (archive is the soft-delete action)
+    emitClientEvent('task.deleted', {
+      taskId,
+      title: task?.title,
+      deletedBy: profile.id,
+    });
+
     fetchBoard(true);
   };
 
