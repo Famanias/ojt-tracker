@@ -48,7 +48,7 @@ export default async function KanbanPage() {
   const enrichedCols = columnsData.map((col) => ({
     ...col,
     tasks: (tasks ?? [])
-      .filter((t: { column_id: string }) => t.column_id === col.id)
+      .filter((t: { column_id: string; completed_at?: string | null }) => t.column_id === col.id && !t.completed_at)
       .map((t: { task_assignees_raw?: RawAssignee[] }) => {
         const raw: RawAssignee[] = t.task_assignees_raw ?? [];
         const task_assignees_detail: TaskAssigneeDetail[] = raw.map((a) => ({

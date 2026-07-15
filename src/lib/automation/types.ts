@@ -161,6 +161,8 @@ export interface AutomationGatewayConfig {
   timeoutMs: number;
   /** Number of retry attempts for failed requests */
   maxRetries: number;
+  /** Configures what gets saved to automation_logs */
+  logLevel: 'full' | 'minimal' | 'errors-only';
 }
 
 export interface AutomationResponse {

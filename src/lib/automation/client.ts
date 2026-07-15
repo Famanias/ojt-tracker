@@ -15,6 +15,7 @@ import { createEvent } from './events';
 import { isRegisteredEvent } from './registry';
 import { withRetry } from './retry';
 import { automationLogger } from './logger';
+import { logAutomationResult, writeDeadLetter } from './logger-db';
 import { getAutomationConfig, isAutomationConfigured } from '../config/automation';
 
 /**
@@ -125,12 +126,15 @@ async function sendToGateway(
       retries,
     });
 
-    return {
+    const result = {
       success: true,
       statusCode: response.status,
       retries,
       durationMs,
     };
+
+    logAutomationResult(event, result);
+    return result;
   } catch (err) {
     const durationMs = Date.now() - startTime;
     const errorMessage = err instanceof Error ? err.message : String(err);
@@ -152,11 +156,18 @@ async function sendToGateway(
       });
     }
 
-    // Automation failures should not break business logic
-    return {
+    const result = {
       success: false,
       error: isTimeout ? `Timeout after ${config.timeoutMs}ms` : errorMessage,
       durationMs,
     };
+
+    logAutomationResult(event, result, result.error);
+
+    // Dead letter queue for complete failures
+    writeDeadLetter(event, result.error, config.maxRetries);
+
+    // Automation failures should not break business logic
+    return result;
   }
 }

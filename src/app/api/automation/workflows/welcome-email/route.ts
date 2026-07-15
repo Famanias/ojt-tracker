@@ -10,29 +10,21 @@ import { Resend } from 'resend';
 import React from 'react';
 import WelcomeEmail from '@/emails/WelcomeEmail';
 import { automationLogger } from '@/lib/automation/logger';
-
-function validateApiKey(request: NextRequest): boolean {
-  const apiKey = request.headers.get('X-Automation-Key');
-  const expectedKey = process.env.N8N_API_KEY;
-  if (!expectedKey) return false;
-  return apiKey === expectedKey;
-}
+import { parseAutomationRequest } from '@/lib/automation/workflow-request';
+import { UserCreatedPayload } from '@/lib/automation/types';
 
 export async function POST(request: NextRequest) {
-  if (!validateApiKey(request)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
   try {
-    const body = await request.json();
-    const { email, fullName, role, orgName } = body;
-
-    if (!email || !fullName) {
-      return NextResponse.json(
-        { error: 'Missing required fields: email, fullName' },
-        { status: 400 }
-      );
+    const automationOrResponse = await parseAutomationRequest<UserCreatedPayload>(request, ['email', 'fullName']);
+    
+    // If it returned a NextResponse, it means validation failed
+    if (automationOrResponse instanceof NextResponse) {
+      return automationOrResponse;
     }
+
+    const { email, fullName, role, orgName } = automationOrResponse.payload;
+
+
 
     const resendApiKey = process.env.RESEND_API_KEY;
     if (!resendApiKey || resendApiKey === 'placeholder' || resendApiKey.startsWith('your_')) {

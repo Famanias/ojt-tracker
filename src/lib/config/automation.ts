@@ -15,6 +15,7 @@ export function getAutomationConfig(): AutomationGatewayConfig {
     enabled: process.env.AUTOMATION_ENABLED === 'true',
     timeoutMs: parseInt(process.env.AUTOMATION_TIMEOUT ?? '10000', 10),
     maxRetries: parseInt(process.env.AUTOMATION_RETRIES ?? '3', 10),
+    logLevel: (process.env.AUTOMATION_LOG_LEVEL as 'full' | 'minimal' | 'errors-only') ?? 'errors-only',
   };
 }
 

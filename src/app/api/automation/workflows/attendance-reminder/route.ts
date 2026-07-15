@@ -12,14 +12,8 @@ import { Resend } from 'resend';
 import React from 'react';
 import AttendanceReminderEmail from '@/emails/AttendanceReminderEmail';
 import { automationLogger } from '@/lib/automation/logger';
+import { parseAutomationRequest } from '@/lib/automation/workflow-request';
 import { format } from 'date-fns';
-
-function validateApiKey(request: NextRequest): boolean {
-  const apiKey = request.headers.get('X-Automation-Key');
-  const expectedKey = process.env.N8N_API_KEY;
-  if (!expectedKey) return false;
-  return apiKey === expectedKey;
-}
 
 function getAdminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -29,8 +23,9 @@ function getAdminClient() {
 }
 
 export async function POST(request: NextRequest) {
-  if (!validateApiKey(request)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const automationOrResponse = await parseAutomationRequest(request);
+  if (automationOrResponse instanceof NextResponse) {
+    return automationOrResponse;
   }
 
   try {

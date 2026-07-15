@@ -1,493 +1,267 @@
-Nexus Automation Roadmap (Implementation Plan)
-Goal
-
-Transform Nexus into an event-driven OJT management platform by integrating n8n without rewriting the existing application.
-
-The current application already performs all business logic.
-
-n8n should become an automation layer that reacts to events emitted by the CMS.
-
-Each phase builds upon the previous one, ensuring a scalable architecture where adding future automations requires minimal code changes.
-
-Phase 1 — Automation Foundation
-
+Implementation Plan — Standardize Automation Workflow Payloads
 Objective
 
-Create the infrastructure that every future automation will use.
+Refactor all Next.js automation workflow endpoints to consume the standardized automation event envelope instead of expecting flattened JSON payloads.
 
-This phase should contain zero business-specific workflows.
+Repository Review Required
 
-New Components
-src/
-├── lib/
-│   ├── automation/
-│   │      client.ts
-│   │      events.ts
-│   │      registry.ts
-│   │      types.ts
-│   │      logger.ts
-│   │      retry.ts
-│   │
-│   └── config/
-│          automation.ts
+[!IMPORTANT]
+This implementation plan is based on the intended architecture, not the current repository structure. Before making any changes, inspect the existing codebase and reuse existing files, utilities, and abstractions whenever possible.
 
-app/
-└── api/
-      internal/
-            automation/
-                  route.ts
-Automation Gateway
+Do NOT create new files, helpers, modules, or types if an equivalent implementation already exists. For example:
 
-Instead of this:
+If a shared request parser already exists, extend it instead of creating another.
+If API key validation is already centralized, reuse it rather than duplicating the logic.
+If automation utilities already exist (src/lib/automation/*), integrate with them instead of introducing parallel implementations.
+If payload types already exist in types.ts, reuse and extend those definitions instead of creating new interfaces.
 
-Attendance
+Any file paths in this plan marked as [NEW] are suggestions, not requirements. If the repository already contains an appropriate file or module, modify that file instead. Prefer extending the existing architecture over introducing additional files.
 
-↓
+This makes the event contract consistent across the Gateway, n8n, and all workflow endpoints, eliminates per-workflow payload mapping inside n8n, and significantly improves maintainability as the automation platform grows.
 
-Webhook
+Goals
+Adopt a single automation request format for all workflows.
+Keep n8n as a pure orchestrator (no payload transformations).
+Reduce duplicated request parsing.
+Make future workflow creation nearly boilerplate.
+Phase 1 — Create Shared Automation Request Parser
+[NEW] src/lib/automation/workflow-request.ts
 
-↓
+Create a reusable helper for workflow endpoints.
 
-n8n
+Responsibilities
+Validate the automation API key.
+Parse the request body.
+Validate the standard automation envelope.
+Return the typed payload.
+Expose envelope metadata when needed (event, actorId, organizationId, timestamp, id).
 
-everything goes through
+Example API:
 
-Attendance
+const automation = await parseAutomationRequest<UserCreatedPayload>(request);
 
-↓
+automation.payload;
+automation.event;
+automation.actorId;
+automation.organizationId;
+automation.timestamp;
+automation.id;
 
-Automation Gateway
+This replaces duplicated logic currently found in every workflow endpoint.
 
-↓
+Phase 2 — Standardize Workflow Endpoints
 
-n8n
+Refactor every workflow endpoint to consume the standardized envelope.
 
-Responsibilities:
+[MODIFY]
 
-API authentication
-Payload validation
-Retry failed requests
-Logging
-Event serialization
-Versioning
-Event Definitions
+src/app/api/automation/workflows/welcome-email/route.ts
 
-Introduce typed events.
+Replace:
 
-Example
+const body = await request.json();
 
-user.created
-
-attendance.clocked_in
-
-attendance.clocked_out
-
-task.created
-
-task.assigned
-
-task.completed
-
-report.generated
-
-Every event has
-
-id
-
-event
-
-timestamp
-
-organizationId
-
-actorId
-
-payload
-Environment Variables
-N8N_URL=
-
-N8N_API_KEY=
-
-AUTOMATION_ENABLED=true
-
-AUTOMATION_TIMEOUT=10000
-
-AUTOMATION_RETRIES=3
-Deliverables
-
-✔ Automation Gateway
-
-✔ Event interfaces
-
-✔ Event logger
-
-✔ Retry utility
-
-✔ Central automation client
-
-Phase 2 — Event-Driven Refactor
-
-Now the application starts emitting events.
-
-Nothing changes for the user.
-
-Instead of
-
-Create Task
-
-becoming
-
-Database
-
-↓
-
-Done
-
-it becomes
-
-Create Task
-
-↓
-
-Database
-
-↓
-
-Emit Event
-
-↓
-
-Automation Gateway
-Initial Events
-Authentication
-user.created
-
-user.invited
-
-user.deleted
-Attendance
-attendance.clocked_in
-
-attendance.clocked_out
-
-attendance.updated
-Kanban
-task.created
-
-task.assigned
-
-task.completed
-
-task.deleted
-Reports
-report.generated
-Organization
-organization.created
-Deliverables
-
-All important business actions emit domain events.
-
-No automation yet.
-
-Phase 3 — n8n Infrastructure
-
-Deploy n8n.
-
-Recommended
-
-Vercel
-
-↓
-
-Next.js
-
-↓
-
-Automation Gateway
-
-↓
-
-Railway
-
-↓
-
-n8n
-
-or
-
-Coolify
-
-↓
-
-n8n
-Create Generic Webhook
-
-One webhook only.
-
-/webhook/events
-
-Every event passes through it.
-
-n8n decides what workflow to execute.
-
-Example
-
-attendance.clocked_in
-
-↓
-
-Switch Node
-
-↓
-
-Attendance Workflow
-
-instead of having 20 webhook URLs.
-
-Deliverables
-
-✔ n8n deployed
-
-✔ Generic Event Webhook
-
-✔ Secure API key
-
-✔ Logging
-
-Phase 4 — Core Business Automations
-
-Now automation finally begins.
-
-Workflow 1
-Welcome Email
-
-Trigger
-
-user.created
-
-Actions
-
-Send Welcome Email
-
-↓
-
-Log Event
-Workflow 2
-Task Assignment
-
-Trigger
-
-task.assigned
-
-Actions
-
-Send Email
-
-↓
-
-Log Notification
-Workflow 3
-Attendance Reminder
-
-Cron
-
-Every weekday
-
-8:15 AM
-
-Workflow
-
-Find users
-without clock-in
-
-↓
-
-Email Reminder
-
-↓
-
-Log Reminder
-Workflow 4
-Weekly Supervisor Summary
-
-Every Friday
-
-Workflow
-
-Attendance Summary
-
-↓
-
-Pending Tasks
-
-↓
-
-Hours Rendered
-
-↓
-
-Generate HTML
-
-↓
-
-Email Supervisor
-Deliverables
-
-4 production workflows
-
-Phase 5 — Monitoring
-
-Now make automations observable.
-
-Database
-automation_logs
-
-Example
-
-id	event	workflow	status
-1	task.assigned	Task Email	Success
-
-Store
-
-request
-response
-execution time
-retries
-workflow id
-CMS Dashboard
-Automation
-
-✓ Welcome Email
-
-✓ Attendance Reminder
-
-✓ Weekly Summary
+const {
+  email,
+  fullName,
+  role,
+  orgName
+} = body;
 
 with
 
-duration
-retries
-failures
-Deliverables
+const automation =
+    await parseAutomationRequest<UserCreatedPayload>(request);
 
-Automation Dashboard
+const {
+    email,
+    fullName,
+    role,
+    orgName
+} = automation.payload;
 
-Execution History
+No changes required inside n8n.
 
-Retry Viewer
+[MODIFY]
 
-Phase 6 — Approval Workflow
+task-assignment/route.ts
 
-Now implement one advanced automation.
+Instead of reading flattened JSON:
+
+const {
+    ...
+} = body;
+
+Use
+
+automation.payload
+[MODIFY]
+
+attendance-reminder/route.ts
+
+Same pattern.
+
+[MODIFY]
+
+weekly-summary/route.ts
+
+Same pattern.
+
+Phase 3 — Remove Duplicate API Key Validation
+
+Each workflow currently contains:
+
+validateApiKey(...)
+
+Remove these duplicated helpers.
+
+Instead:
+
+workflow-request.ts
+
+↓
+
+validate API key
+
+↓
+
+throw Unauthorized
+
+There should only be one implementation.
+
+Phase 4 — Strong Typing
+
+Each workflow should explicitly declare the payload it expects.
 
 Example
 
-Attendance Correction
+parseAutomationRequest<UserCreatedPayload>()
 
-Student
+instead of
 
-↓
+any
 
-Submit Request
+Reuse the payload interfaces already defined in
 
-↓
+src/lib/automation/types.ts
 
-Event
+No duplicate interfaces.
 
-↓
+Phase 5 — Improve Error Messages
 
-n8n
+Instead of
 
-↓
+Missing required fields
 
-Supervisor Email
+Return contextual automation errors.
 
-↓
+Example:
 
-Approve
+{
+  "error": "Invalid automation event payload",
+  "workflow": "welcome-email",
+  "missing": [
+    "email",
+    "fullName"
+  ]
+}
 
-↓
+This makes debugging inside n8n much easier.
 
-Update Database
+Phase 6 — Update Documentation
 
-↓
+Update
 
-Notify Student
+docs/automation-guide.md
 
-Same architecture can later power
+to establish the official workflow contract.
 
-Leave Requests
-Overtime
-Document Approval
-Internship Extension
-Deliverables
+Every workflow endpoint must expect:
 
-Multi-step Approval Workflow
+{
+  "id": "...",
+  "event": "...",
+  "timestamp": "...",
+  "actorId": "...",
+  "organizationId": "...",
+  "payload": {
+    ...
+  }
+}
 
-Phase 7 — Extensibility
+Rule:
 
-Now your architecture is complete.
+n8n must forward the automation event unchanged. Workflow endpoints are responsible for reading body.payload.
 
-Adding future automations should require:
+Phase 7 — Regression Testing
+PowerShell
 
-Add Event
+Run
 
-inventory.low
+test-router.ps1
 
-Create Workflow
+Expected:
 
-Done.
+user.created
+user.invited
+task.assigned
+task.completed
+attendance.clocked_in
+attendance.clocked_out
+report.generated
 
-No core application changes.
+all return
 
-Possible future automations
+{
+    "received": true
+}
+Real Application
 
-Google Calendar
-Discord
-Slack
-Telegram
-Microsoft Teams
-Google Sheets
-HRIS
-Airtable
-Notion
-CRM integrations
-Final Architecture
-                    Users
-                      │
-                      ▼
-             Next.js (nexxus.lol)
-                      │
-                 Business Logic
-                      │
-              Domain Events
-                      │
-                      ▼
-          Automation Gateway (API)
-                      │
-          Authentication • Retry • Logs
-                      │
-                      ▼
-                    n8n
-                      │
-      ┌───────────────┼────────────────┐
-      ▼               ▼                ▼
-   Email        Scheduled Jobs    Notifications
- (Resend)         (Cron)        (Discord/Slack)
-                      │
-                      ▼
-              Automation Logs
-                      │
-                      ▼
-            Nexus Admin Dashboard
-Why this phased approach works
+Verify from the actual application:
 
-The dependency chain is intentional:
+Register user
+Invite user
+Assign task
+Complete task
+Clock in
+Clock out
 
-Phase 1 builds reusable infrastructure that every automation uses.
-Phase 2 teaches your application to emit events without changing user-facing behavior.
-Phase 3 connects those events to n8n through a single, secure entry point.
-Phase 4 adds your first business automations with almost no changes to the core application.
-Phase 5 adds monitoring and visibility, which is important for production systems.
-Phase 6 demonstrates more advanced orchestration with approval workflows.
-Phase 7 leaves you with an architecture where future integrations are mostly configuration and new workflows rather than application rewrites.
+Confirm:
+
+Event reaches Master Router
+Correct sub-workflow executes
+Workflow endpoint returns HTTP 200
+Email is delivered (where applicable)
+Expected Architecture
+Next.js Business Logic
+        │
+        ▼
+createEvent()
+        │
+        ▼
+Gateway (client.ts)
+        │
+        ▼
+n8n Master Router
+        │
+        ▼
+Users / Kanban / Attendance / Reports / Organizations
+        │
+        ▼
+Workflow Endpoint
+        │
+        ▼
+parseAutomationRequest()
+        │
+        ▼
+automation.payload
+        │
+        ▼
+Business Logic
+Benefits
+✅ Single, consistent automation event contract across the entire system.
+✅ No payload reshaping in n8n, making workflows simpler and easier to maintain.
+✅ Shared request parsing, API key validation, and error handling reduce duplicated code.
+✅ Strong typing using your existing automation payload interfaces.
+✅ Easier to add future workflows because every endpoint follows the same pattern.
+✅ Aligns your production architecture with an event-driven design where n8n orchestrates events rather than transforming them.

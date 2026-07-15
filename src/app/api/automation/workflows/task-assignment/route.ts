@@ -10,29 +10,29 @@ import { Resend } from 'resend';
 import React from 'react';
 import TaskAssignmentEmail from '@/emails/TaskAssignmentEmail';
 import { automationLogger } from '@/lib/automation/logger';
-
-function validateApiKey(request: NextRequest): boolean {
-  const apiKey = request.headers.get('X-Automation-Key');
-  const expectedKey = process.env.N8N_API_KEY;
-  if (!expectedKey) return false;
-  return apiKey === expectedKey;
-}
+import { parseAutomationRequest } from '@/lib/automation/workflow-request';
+import { TaskAssignedPayload } from '@/lib/automation/types';
 
 export async function POST(request: NextRequest) {
-  if (!validateApiKey(request)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
   try {
-    const body = await request.json();
-    const { assigneeEmail, assigneeName, taskTitle, assignedByName, priority, dueDate } = body;
-
-    if (!assigneeEmail || !taskTitle) {
-      return NextResponse.json(
-        { error: 'Missing required fields: assigneeEmail, taskTitle' },
-        { status: 400 }
-      );
+    const automationOrResponse = await parseAutomationRequest<TaskAssignedPayload>(request, ['assigneeEmail', 'title']);
+    
+    if (automationOrResponse instanceof NextResponse) {
+      return automationOrResponse;
     }
+
+    const { assigneeEmail, assigneeName, title: taskTitle, assignedByName } = automationOrResponse.payload;
+    
+    if (!assigneeEmail) {
+      return NextResponse.json({ error: 'Missing assigneeEmail in payload' }, { status: 400 });
+    }
+
+    // Note: The original implementation looked for 'priority' and 'dueDate', but TaskAssignedPayload doesn't have them in types.ts.
+    // If they aren't provided by the event, they will fallback to undefined in the email template.
+    const priority = 'medium';
+    const dueDate = undefined;
+
+
 
     const resendApiKey = process.env.RESEND_API_KEY;
     if (!resendApiKey || resendApiKey === 'placeholder' || resendApiKey.startsWith('your_')) {

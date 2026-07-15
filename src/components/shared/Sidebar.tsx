@@ -20,6 +20,7 @@ import {
   BarChart as ReportIcon,
   Notifications as NotificationsIcon,
   Business as OrgIcon,
+  SmartToy as AutomationIcon,
 } from '@mui/icons-material';
 import { useRouter, usePathname } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
@@ -45,6 +46,7 @@ const navItems: NavItem[] = [
   { label: 'Notifications', icon: <NotificationsIcon />, path: '/dashboard/notifications', roles: ['ojt', 'supervisor', 'admin'] },
   { label: 'Reports', icon: <ReportIcon />, path: '/dashboard/reports', roles: ['supervisor', 'admin'] },
   { label: 'Users', icon: <PeopleIcon />, path: '/dashboard/admin/users', roles: ['admin'] },
+  { label: 'Automation', icon: <AutomationIcon />, path: '/dashboard/admin/automation', roles: ['admin'] },
   { label: 'Site Settings', icon: <SettingsIcon />, path: '/dashboard/admin/settings', roles: ['admin'] },
 ];
 
