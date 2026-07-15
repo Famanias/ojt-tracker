@@ -1,38 +1,30 @@
 // ============================================================
-// Automation Workflow — Task Assignment Notification
+// Automation Workflow — Task Assignment Email
 // ============================================================
 // Triggered by n8n when a task.assigned event is received.
-// Sends a notification email to the assignee.
+// Sends an email via Resend to the assigned user.
 // ============================================================
 
 import { NextRequest, NextResponse } from 'next/server';
 import { Resend } from 'resend';
 import React from 'react';
-import TaskAssignmentEmail from '@/emails/TaskAssignmentEmail';
+import TaskAssignedEmail from '@/emails/TaskAssignedEmail';
 import { automationLogger } from '@/lib/automation/logger';
 import { parseAutomationRequest } from '@/lib/automation/workflow-request';
 import { TaskAssignedPayload } from '@/lib/automation/types';
 
 export async function POST(request: NextRequest) {
   try {
-    const automationOrResponse = await parseAutomationRequest<TaskAssignedPayload>(request, ['assigneeEmail', 'title']);
+    const automationOrResponse = await parseAutomationRequest<TaskAssignedPayload>(request, [
+      'assigneeEmail', 'assigneeName', 'title'
+    ]);
     
+    // If it returned a NextResponse, it means validation failed
     if (automationOrResponse instanceof NextResponse) {
       return automationOrResponse;
     }
 
-    const { assigneeEmail, assigneeName, title: taskTitle, assignedByName } = automationOrResponse.payload;
-    
-    if (!assigneeEmail) {
-      return NextResponse.json({ error: 'Missing assigneeEmail in payload' }, { status: 400 });
-    }
-
-    // Note: The original implementation looked for 'priority' and 'dueDate', but TaskAssignedPayload doesn't have them in types.ts.
-    // If they aren't provided by the event, they will fallback to undefined in the email template.
-    const priority = 'medium';
-    const dueDate = undefined;
-
-
+    const { assigneeEmail, assigneeName, title, assignedByName } = automationOrResponse.payload;
 
     const resendApiKey = process.env.RESEND_API_KEY;
     if (!resendApiKey || resendApiKey === 'placeholder' || resendApiKey.startsWith('your_')) {
@@ -51,24 +43,21 @@ export async function POST(request: NextRequest) {
     const { data, error } = await resend.emails.send({
       from: emailFrom,
       to: assigneeEmail,
-      subject: `New task assigned: ${taskTitle}`,
-      react: React.createElement(TaskAssignmentEmail, {
-        assigneeName: assigneeName || 'OJT Member',
-        assigneeEmail,
-        taskTitle,
+      subject: `New Task Assigned: ${title}`,
+      react: React.createElement(TaskAssignedEmail, {
+        assigneeName: assigneeName || 'OJT',
+        taskTitle: title,
         assignedByName: assignedByName || 'Your Supervisor',
-        priority: priority || 'medium',
-        dueDate,
-        dashboardUrl: `${siteUrl}/dashboard/kanban`,
+        taskUrl: `${siteUrl}/kanban`,
       }),
     });
 
     if (error) {
-      automationLogger.error('TaskAssignmentWorkflow', `Failed to send task notification: ${error.message}`, { assigneeEmail });
+      automationLogger.error('TaskAssignmentWorkflow', `Failed to send task assignment email: ${error.message}`, { email: assigneeEmail });
       return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     }
 
-    automationLogger.info('TaskAssignmentWorkflow', `Task notification sent to ${assigneeEmail}`, { messageId: data?.id });
+    automationLogger.info('TaskAssignmentWorkflow', `Task assignment email sent to ${assigneeEmail}`, { messageId: data?.id });
     return NextResponse.json({ success: true, messageId: data?.id });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
