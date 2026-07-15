@@ -94,7 +94,7 @@ export default function KanbanBoard({ initialColumns, initialOjts, initialProfil
             ...t,
             task_assignees_detail: detail,
             assigned_ojts: detail
-              .filter((a) => a.status === 'accepted')
+              .filter((a) => a.status === 'accepted' && a.profile)
               .map((a) => a.profile),
           };
         }),

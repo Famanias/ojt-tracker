@@ -79,7 +79,7 @@ export default function TaskModal({
         setTitle(editingTask.title);
         setDescription(editingTask.description ?? '');
         setColumnId(editingTask.column_id);
-        setAssignedOjtIds((editingTask.assigned_ojts ?? []).map((o) => o.id));
+        setAssignedOjtIds((editingTask.assigned_ojts ?? []).filter(Boolean).map((o) => o?.id).filter(Boolean));
         setPriority(editingTask.priority);
         setDueDate(editingTask.due_date ?? '');
         setExistingAttachments(editingTask.attachments ?? []);
@@ -185,31 +185,41 @@ export default function TaskModal({
     }
 
     // Emit automation events (fire-and-forget)
-    if (!editingTask && taskId) {
-      // task.created event
-      emitClientEvent('task.created', {
-        taskId,
-        title: title.trim(),
-        description: description || undefined,
-        columnId,
-        priority,
-        creatorId: currentUser?.id,
-        creatorName: currentUser?.full_name,
-        assigneeIds: assignedOjtIds,
-      });
-
-      // task.assigned events for each assignee
-      assignedOjtIds.forEach((uid) => {
-        const ojt = ojts.find((o) => o.id === uid);
-        emitClientEvent('task.assigned', {
+    if (taskId) {
+      if (!editingTask) {
+        // task.created event
+        emitClientEvent('task.created', {
           taskId,
           title: title.trim(),
-          assigneeId: uid,
-          assigneeName: ojt?.full_name,
-          assigneeEmail: ojt?.email,
-          assignedBy: currentUser?.id,
-          assignedByName: currentUser?.full_name,
+          description: description || undefined,
+          columnId,
+          priority,
+          creatorId: currentUser?.id,
+          creatorName: currentUser?.full_name,
+          assigneeIds: assignedOjtIds,
         });
+      }
+
+      // Determine which assignees are new so we don't spam people who were already assigned
+      const oldAssigneeIds = editingTask 
+        ? (editingTask.assigned_ojts ?? []).filter(Boolean).map((o) => o?.id).filter(Boolean)
+        : [];
+      const newAssigneeIds = assignedOjtIds.filter(id => !oldAssigneeIds.includes(id));
+
+      // task.assigned events for each newly assigned user
+      newAssigneeIds.forEach((uid) => {
+        const ojt = ojts.find((o) => o.id === uid);
+        if (ojt) {
+          emitClientEvent('task.assigned', {
+            taskId,
+            title: title.trim(),
+            assigneeId: uid,
+            assigneeName: ojt.full_name,
+            assigneeEmail: ojt.email,
+            assignedBy: currentUser?.id,
+            assignedByName: currentUser?.full_name,
+          });
+        }
       });
     }
 
