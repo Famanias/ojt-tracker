@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
 
     const { data, error } = await resend.emails.send({
       from: emailFrom,
-      to: assigneeEmail,
+      to: assigneeEmail as string,
       subject: `New Task Assigned: ${title}`,
       react: React.createElement(TaskAssignedEmail, {
         assigneeName: assigneeName || 'OJT',
