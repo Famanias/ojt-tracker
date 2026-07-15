@@ -1,88 +1,267 @@
-Fix Password Recovery Redirect Flow (Supabase PKCE)
-Problem
+Implementation Plan — Standardize Automation Workflow Payloads
+Objective
 
-The password recovery flow has the same issue as the Google OAuth flow previously had.
+Refactor all Next.js automation workflow endpoints to consume the standardized automation event envelope instead of expecting flattened JSON payloads.
 
-Current Flow
-User clicks Forgot Password.
-User submits their email address.
-Supabase sends a password recovery email.
-The email contains a link similar to:
-https://<project>.supabase.co/auth/v1/verify?token=<pkce_token>&type=recovery&redirect_to=https://nexxus.lol
-The user clicks Reset Password.
-Supabase verifies the recovery token.
-The user is redirected to:
-https://www.nexxus.lol/?code=<authorization_code>
+Repository Review Required
 
-instead of the password reset page.
+[!IMPORTANT]
+This implementation plan is based on the intended architecture, not the current repository structure. Before making any changes, inspect the existing codebase and reuse existing files, utilities, and abstractions whenever possible.
 
-The browser remains on the landing page with the authorization code in the URL, and the password reset flow never continues.
+Do NOT create new files, helpers, modules, or types if an equivalent implementation already exists. For example:
 
-Expected Flow
+If a shared request parser already exists, extend it instead of creating another.
+If API key validation is already centralized, reuse it rather than duplicating the logic.
+If automation utilities already exist (src/lib/automation/*), integrate with them instead of introducing parallel implementations.
+If payload types already exist in types.ts, reuse and extend those definitions instead of creating new interfaces.
 
-The recovery flow should complete automatically.
+Any file paths in this plan marked as [NEW] are suggestions, not requirements. If the repository already contains an appropriate file or module, modify that file instead. Prefer extending the existing architecture over introducing additional files.
 
-User
-    ↓
-Forgot Password
-    ↓
-Supabase sends recovery email
-    ↓
-User clicks recovery link
-    ↓
-Supabase verifies recovery token
-    ↓
-OAuth/PKCE callback exchanges the authorization code
-    ↓
-Recovery session established
-    ↓
-Redirect to
-/auth/reset-password
-    ↓
-User enters a new password
-    ↓
-Password updated successfully
-    ↓
-Redirect to Login
+This makes the event contract consistent across the Gateway, n8n, and all workflow endpoints, eliminates per-workflow payload mapping inside n8n, and significantly improves maintainability as the automation platform grows.
 
-The user should never remain on:
+Goals
+Adopt a single automation request format for all workflows.
+Keep n8n as a pure orchestrator (no payload transformations).
+Reduce duplicated request parsing.
+Make future workflow creation nearly boilerplate.
+Phase 1 — Create Shared Automation Request Parser
+[NEW] src/lib/automation/workflow-request.ts
 
-/?code=<authorization_code>
-Investigation Tasks
+Create a reusable helper for workflow endpoints.
 
-Perform a complete investigation before implementing any fixes.
+Responsibilities
+Validate the automation API key.
+Parse the request body.
+Validate the standard automation envelope.
+Return the typed payload.
+Expose envelope metadata when needed (event, actorId, organizationId, timestamp, id).
 
-Verify:
+Example API:
 
-whether the password recovery email is using the correct redirect_to URL
-whether the recovery link should point to /auth/callback instead of the landing page
-whether the existing PKCE callback exchanges the authorization code correctly
-whether the callback distinguishes between Google OAuth and password recovery flows
-whether the callback redirects all successful recovery sessions to /auth/reset-password
-whether session cookies are written before the redirect occurs
-whether middleware correctly recognizes the recovery session
-whether any redirects send users back to the landing page after the session is established
+const automation = await parseAutomationRequest<UserCreatedPayload>(request);
 
-Compare the password recovery flow with the already-fixed Google OAuth flow and reuse the same authentication architecture wherever possible.
+automation.payload;
+automation.event;
+automation.actorId;
+automation.organizationId;
+automation.timestamp;
+automation.id;
 
-Implementation Requirements
-Reuse the existing PKCE callback route instead of creating a separate recovery callback unless absolutely necessary.
-Do not duplicate authentication logic.
-Ensure the authorization code is exchanged exactly once.
-Preserve all session cookies during redirects.
-Ensure password recovery and Google OAuth share the same callback infrastructure where appropriate.
-Redirect authenticated recovery sessions directly to /auth/reset-password.
-Remove the authorization code from the browser URL after the session has been established.
-Success Criteria
+This replaces duplicated logic currently found in every workflow endpoint.
 
-The implementation is successful when:
+Phase 2 — Standardize Workflow Endpoints
 
-A password recovery email is sent successfully.
-Clicking the recovery link immediately establishes a valid recovery session.
-The user is redirected directly to /auth/reset-password.
-The authorization code is exchanged automatically and does not remain in the URL.
-The user can set a new password without additional authentication steps.
-Existing Google OAuth functionality continues to work without regressions.
-The callback route remains reusable for all PKCE authentication flows (Google OAuth, password recovery, and future providers).
+Refactor every workflow endpoint to consume the standardized envelope.
 
-This version encourages the AI to diagnose first and implement second, while emphasizing reuse of your existing OAuth callback rather than introducing separate, potentially inconsistent authentication flows.
+[MODIFY]
+
+src/app/api/automation/workflows/welcome-email/route.ts
+
+Replace:
+
+const body = await request.json();
+
+const {
+  email,
+  fullName,
+  role,
+  orgName
+} = body;
+
+with
+
+const automation =
+    await parseAutomationRequest<UserCreatedPayload>(request);
+
+const {
+    email,
+    fullName,
+    role,
+    orgName
+} = automation.payload;
+
+No changes required inside n8n.
+
+[MODIFY]
+
+task-assignment/route.ts
+
+Instead of reading flattened JSON:
+
+const {
+    ...
+} = body;
+
+Use
+
+automation.payload
+[MODIFY]
+
+attendance-reminder/route.ts
+
+Same pattern.
+
+[MODIFY]
+
+weekly-summary/route.ts
+
+Same pattern.
+
+Phase 3 — Remove Duplicate API Key Validation
+
+Each workflow currently contains:
+
+validateApiKey(...)
+
+Remove these duplicated helpers.
+
+Instead:
+
+workflow-request.ts
+
+↓
+
+validate API key
+
+↓
+
+throw Unauthorized
+
+There should only be one implementation.
+
+Phase 4 — Strong Typing
+
+Each workflow should explicitly declare the payload it expects.
+
+Example
+
+parseAutomationRequest<UserCreatedPayload>()
+
+instead of
+
+any
+
+Reuse the payload interfaces already defined in
+
+src/lib/automation/types.ts
+
+No duplicate interfaces.
+
+Phase 5 — Improve Error Messages
+
+Instead of
+
+Missing required fields
+
+Return contextual automation errors.
+
+Example:
+
+{
+  "error": "Invalid automation event payload",
+  "workflow": "welcome-email",
+  "missing": [
+    "email",
+    "fullName"
+  ]
+}
+
+This makes debugging inside n8n much easier.
+
+Phase 6 — Update Documentation
+
+Update
+
+docs/automation-guide.md
+
+to establish the official workflow contract.
+
+Every workflow endpoint must expect:
+
+{
+  "id": "...",
+  "event": "...",
+  "timestamp": "...",
+  "actorId": "...",
+  "organizationId": "...",
+  "payload": {
+    ...
+  }
+}
+
+Rule:
+
+n8n must forward the automation event unchanged. Workflow endpoints are responsible for reading body.payload.
+
+Phase 7 — Regression Testing
+PowerShell
+
+Run
+
+test-router.ps1
+
+Expected:
+
+user.created
+user.invited
+task.assigned
+task.completed
+attendance.clocked_in
+attendance.clocked_out
+report.generated
+
+all return
+
+{
+    "received": true
+}
+Real Application
+
+Verify from the actual application:
+
+Register user
+Invite user
+Assign task
+Complete task
+Clock in
+Clock out
+
+Confirm:
+
+Event reaches Master Router
+Correct sub-workflow executes
+Workflow endpoint returns HTTP 200
+Email is delivered (where applicable)
+Expected Architecture
+Next.js Business Logic
+        │
+        ▼
+createEvent()
+        │
+        ▼
+Gateway (client.ts)
+        │
+        ▼
+n8n Master Router
+        │
+        ▼
+Users / Kanban / Attendance / Reports / Organizations
+        │
+        ▼
+Workflow Endpoint
+        │
+        ▼
+parseAutomationRequest()
+        │
+        ▼
+automation.payload
+        │
+        ▼
+Business Logic
+Benefits
+✅ Single, consistent automation event contract across the entire system.
+✅ No payload reshaping in n8n, making workflows simpler and easier to maintain.
+✅ Shared request parsing, API key validation, and error handling reduce duplicated code.
+✅ Strong typing using your existing automation payload interfaces.
+✅ Easier to add future workflows because every endpoint follows the same pattern.
+✅ Aligns your production architecture with an event-driven design where n8n orchestrates events rather than transforming them.

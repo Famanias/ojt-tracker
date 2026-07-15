@@ -147,6 +147,8 @@ create table if not exists kanban_tasks (
   position integer not null default 0,
   due_date date,
   priority text default 'medium',                -- low, medium, high
+  completed_at timestamptz,
+  completed_by uuid references profiles(id),
   archived_at timestamptz,
   archived_by uuid references profiles(id),
   created_at timestamptz not null default now(),
@@ -646,6 +648,9 @@ on kanban_tasks(column_id, position);
 
 create index if not exists idx_kanban_tasks_org_column_position
 on kanban_tasks(org_id, column_id, position);
+
+create index if not exists idx_kanban_tasks_completed_at
+on kanban_tasks(org_id, completed_at desc) where completed_at is not null;
 
 -- RPC for reordering kanban columns in a single transaction
 create or replace function reorder_kanban_columns(payload jsonb)

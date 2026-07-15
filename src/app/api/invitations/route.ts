@@ -4,6 +4,8 @@ import { createClient } from '@/lib/supabase/server';
 import { createInvitation, listInvitations } from '@/lib/services/invitation';
 import { sendInvitationEmail } from '@/lib/services/email';
 import { getSiteUrl } from '@/lib/utils/url';
+import { emitEvent } from '@/lib/automation';
+import type { UserInvitedPayload } from '@/lib/automation';
 
 function getAdminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -103,6 +105,17 @@ export async function POST(request: NextRequest) {
         warning: 'Invitation created successfully, but the email could not be delivered. Please try resending the invitation.'
       });
     }
+
+    // Emit user.invited event (regardless of email delivery status)
+    emitEvent<UserInvitedPayload>('user.invited', admin.id, {
+      invitationId: invitation.id,
+      email,
+      role,
+      inviterName,
+      orgName,
+      inviteUrl,
+      expiresAt: expiresAtStr,
+    }, admin.org_id);
 
     return NextResponse.json({ success: true, invitation });
   } catch (err: unknown) {

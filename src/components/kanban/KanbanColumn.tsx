@@ -34,11 +34,12 @@ interface Props {
   onArchiveTask: (taskId: string) => void;
   onViewTask: (task: KanbanTask) => void;
   onVolunteer?: (taskId: string) => void;
+  onMarkAsDone: (taskId: string) => void;
 }
 
 export default function KanbanColumnComponent({
   column, canManage, canManageColumns = false, canAddTask = false, isDragging = false, currentUserId, isOjt = false,
-  onAddTask, onEditColumn, onDeleteColumn, onEditTask, onArchiveTask, onViewTask, onVolunteer,
+  onAddTask, onEditColumn, onDeleteColumn, onEditTask, onArchiveTask, onViewTask, onVolunteer, onMarkAsDone,
 }: Props) {
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
 
@@ -189,6 +190,7 @@ export default function KanbanColumnComponent({
                   onArchive={() => onArchiveTask(task.id)}
                   onView={() => onViewTask(task)}
                   onVolunteer={() => onVolunteer?.(task.id)}
+                  onMarkAsDone={() => onMarkAsDone(task.id)}
                 />
               );
             })}

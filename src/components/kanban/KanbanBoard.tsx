@@ -16,7 +16,7 @@ import {
 import {
   Add as AddIcon, HourglassEmpty as PendingIcon,
   FilterList as FilterIcon,
-  Archive as ArchiveIcon,
+  TaskAlt as TaskAltIcon,
   Warning as WarningIcon,
 } from '@mui/icons-material';
 import { createClient } from '@/lib/supabase/client';
@@ -24,6 +24,9 @@ import { KanbanColumn, KanbanTask, Profile } from '@/types';
 import KanbanColumnComponent from './KanbanColumn';
 import KanbanTaskCard from './KanbanTask';
 import TaskModal from './TaskModal';
+import { emitClientEvent } from '@/lib/automation/client-emitter';
+import ArchiveIcon from '@mui/icons-material/Archive';
+import FinishedTasksDrawer from './FinishedTasksDrawer';
 import ColumnDialog from './ColumnDialog';
 import TaskViewDialog from './TaskViewDialog';
 import TaskArchiveDialog from './TaskArchiveDialog';
@@ -58,6 +61,8 @@ export default function KanbanBoard({ initialColumns, initialOjts, initialProfil
   const [editingColumn, setEditingColumn] = useState<KanbanColumn | null>(null);
   const [deleteColAction, setDeleteColAction] = useState<'move' | 'archive'>('archive');
   const [deleteColMoveTarget, setDeleteColMoveTarget] = useState<string>('');
+  
+  const [finishedDrawerOpen, setFinishedDrawerOpen] = useState(false);
   const dragStartColumnsRef = React.useRef<KanbanColumn[]>([]);
   const supabase = createClient();
   const profile = initialProfile;
@@ -123,7 +128,7 @@ export default function KanbanBoard({ initialColumns, initialOjts, initialProfil
     const [{ data: cols, error: colError }, tasksRes, { data: ojts }] =
       await Promise.all([
         supabase.from('kanban_columns').select('*').order('position'),
-        supabase.from('kanban_tasks').select(taskQuery).order('position').is('archived_at', null),
+        supabase.from('kanban_tasks').select(taskQuery).order('position').is('archived_at', null).is('completed_at', null),
         supabase.from('profiles').select('*').eq('role', 'ojt').eq('is_active', true),
       ]);
 
@@ -132,7 +137,7 @@ export default function KanbanBoard({ initialColumns, initialOjts, initialProfil
     // Fallback if status column doesn't exist yet in DB
     let tasks = tasksRes.data;
     if (tasksRes.error) {
-      const fallback = await supabase.from('kanban_tasks').select(taskQueryFallback).order('position').is('archived_at', null);
+      const fallback = await supabase.from('kanban_tasks').select(taskQueryFallback).order('position').is('archived_at', null).is('completed_at', null);
       tasks = fallback.data;
       if (fallback.error) setError(fallback.error.message);
     }
@@ -363,6 +368,7 @@ export default function KanbanBoard({ initialColumns, initialOjts, initialProfil
         });
 
         if (!res.ok) throw new Error('Failed to persist cross-column task movement.');
+
         fetchBoard(true); // Sync with DB
       } catch (err) {
         console.error(err);
@@ -390,10 +396,18 @@ export default function KanbanBoard({ initialColumns, initialOjts, initialProfil
   };
 
   const archiveTask = async (taskId: string) => {
+    const task = findTaskById(taskId);
     await supabase
       .from('kanban_tasks')
       .update({ archived_at: new Date().toISOString(), archived_by: profile.id })
       .eq('id', taskId);
+
+    emitClientEvent('task.deleted', {
+      taskId,
+      title: task?.title,
+      deletedBy: profile.id,
+    });
+
     fetchBoard(true);
   };
 
@@ -566,6 +580,15 @@ export default function KanbanBoard({ initialColumns, initialOjts, initialProfil
               </Badge>
             ) : null;
           })()}
+          <Button
+            variant="outlined"
+            startIcon={<TaskAltIcon />}
+            onClick={() => setFinishedDrawerOpen(true)}
+            color="success"
+            sx={{ mr: 1 }}
+          >
+            Finished Tasks
+          </Button>
           {(profile.role === 'admin' || personal) && (
             <Button
               variant="outlined"
@@ -663,6 +686,7 @@ export default function KanbanBoard({ initialColumns, initialOjts, initialProfil
                   onArchiveTask={archiveTask}
                   onViewTask={openViewTask}
                   onVolunteer={volunteerForTask}
+                  onMarkAsDone={() => fetchBoard(true)}
                 />
               ))}
 
@@ -712,8 +736,9 @@ export default function KanbanBoard({ initialColumns, initialOjts, initialProfil
                 onEditColumn={() => {}}
                 onDeleteColumn={() => {}}
                 onEditTask={() => {}}
-                  onArchiveTask={() => {}}
+                onArchiveTask={() => {}}
                 onViewTask={() => {}}
+                onMarkAsDone={() => {}}
               />
             )}
           </DragOverlay>
@@ -845,6 +870,12 @@ export default function KanbanBoard({ initialColumns, initialOjts, initialProfil
         columns={columns}
         ojts={allOjts}
         currentUser={profile}
+      />
+
+      <FinishedTasksDrawer 
+        open={finishedDrawerOpen} 
+        onClose={() => setFinishedDrawerOpen(false)}
+        onTaskReopened={() => fetchBoard(true)} 
       />
 
       {/* Column Create/Edit Dialog */}

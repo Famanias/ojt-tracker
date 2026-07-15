@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient as createSupabaseAdmin } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/server';
+import { emitEvent } from '@/lib/automation';
+import type { UserCreatedPayload, UserDeletedPayload } from '@/lib/automation';
 
 // Uses service role key to create users bypassing email confirmation
 function getAdminClient() {
@@ -68,6 +70,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: profileError.message }, { status: 400 });
     }
 
+    // Emit user.created event
+    emitEvent<UserCreatedPayload>('user.created', authData.user.id, {
+      userId: authData.user.id,
+      email,
+      fullName: full_name,
+      role,
+    }, orgId);
+
     return NextResponse.json({ success: true, userId: authData.user.id });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -96,6 +106,12 @@ export async function DELETE(request: NextRequest) {
     const { userId } = await request.json();
     const { error } = await supabaseAdmin.auth.admin.deleteUser(userId);
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+
+    // Emit user.deleted event
+    emitEvent<UserDeletedPayload>('user.deleted', userId, {
+      userId,
+    });
+
     return NextResponse.json({ success: true });
   } catch {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

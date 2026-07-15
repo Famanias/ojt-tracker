@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import {
   Box, Card, CardContent, Typography, Avatar, AvatarGroup,
-  Chip, IconButton, Menu, MenuItem, ListItemIcon, Tooltip, Button,
+  Chip, IconButton, Menu, MenuItem, ListItemIcon, Tooltip, Button, CircularProgress
 } from '@mui/material';
 import {
   MoreVert as MoreIcon,
@@ -13,6 +13,7 @@ import {
   CalendarToday as DateIcon,
   HourglassEmpty as PendingIcon,
   PersonAdd as VolunteerIcon,
+  TaskAlt as TaskAltIcon,
 } from '@mui/icons-material';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -29,10 +30,30 @@ interface Props {
   onArchive?: () => void;
   onView?: () => void;
   onVolunteer?: () => void;
+  onMarkAsDone?: () => void;
 }
 
-export default function KanbanTaskCard({ task, canManage = false, isDragging = false, hasPendingInvitation = false, canVolunteer = false, onEdit, onArchive, onView, onVolunteer }: Props) {
+export default function KanbanTaskCard({ task, canManage = false, isDragging = false, hasPendingInvitation = false, canVolunteer = false, onEdit, onArchive, onView, onVolunteer, onMarkAsDone }: Props) {
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
+  const [completing, setCompleting] = useState(false);
+
+  const handleComplete = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setMenuAnchor(null);
+    setCompleting(true);
+    try {
+      const res = await fetch(`/api/kanban/tasks/${task.id}/complete`, { method: 'POST' });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to complete task');
+      }
+      onMarkAsDone?.();
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setCompleting(false);
+    }
+  };
 
   const { attributes, listeners, setNodeRef, transform, transition, isDragging: isSortable } =
     useSortable({ id: task.id });
@@ -95,15 +116,30 @@ export default function KanbanTaskCard({ task, canManage = false, isDragging = f
                 </Tooltip>
               )}
             </Box>
-            {canManage && (
-              <IconButton
-                size="small"
-                sx={{ mt: -0.5, mr: -0.5 }}
-                onClick={(e) => { e.stopPropagation(); setMenuAnchor(e.currentTarget); }}
-              >
-                <MoreIcon fontSize="small" />
-              </IconButton>
-            )}
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <Tooltip title="Mark as Done">
+                <span>
+                  <IconButton
+                    size="small"
+                    sx={{ mt: -0.5, color: 'success.main' }}
+                    onClick={handleComplete}
+                    disabled={completing}
+                  >
+                    {completing ? <CircularProgress size={16} /> : <TaskAltIcon fontSize="small" />}
+                  </IconButton>
+                </span>
+              </Tooltip>
+              {canManage && (
+                <IconButton
+                  size="small"
+                  sx={{ mt: -0.5, mr: -0.5 }}
+                  onClick={(e) => { e.stopPropagation(); setMenuAnchor(e.currentTarget); }}
+                  disabled={completing}
+                >
+                  <MoreIcon fontSize="small" />
+                </IconButton>
+              )}
+            </Box>
           </Box>
 
           {/* Title */}
@@ -151,13 +187,17 @@ export default function KanbanTaskCard({ task, canManage = false, isDragging = f
                   },
                 }}
               >
-                {assignedOjts.map((ojt) => (
-                  <Tooltip key={ojt.id} title={ojt.full_name}>
-                    <Avatar src={ojt.avatar_url} sx={{ width: 24, height: 24 }}>
-                      {ojt.full_name.charAt(0)}
-                    </Avatar>
-                  </Tooltip>
-                ))}
+                {assignedOjts.map((ojt) => {
+                  if (!ojt) return null;
+                  const name = ojt.full_name || 'Unknown User';
+                  return (
+                    <Tooltip key={ojt.id} title={name}>
+                      <Avatar src={ojt.avatar_url} sx={{ width: 24, height: 24 }}>
+                        {name.charAt(0)}
+                      </Avatar>
+                    </Tooltip>
+                  );
+                })}
               </AvatarGroup>
             )}
 
@@ -206,6 +246,10 @@ export default function KanbanTaskCard({ task, canManage = false, isDragging = f
         open={!!menuAnchor}
         onClose={() => setMenuAnchor(null)}
       >
+        <MenuItem onClick={handleComplete} sx={{ color: 'success.main', fontWeight: 500 }}>
+          <ListItemIcon><TaskAltIcon fontSize="small" color="success" /></ListItemIcon>
+          Mark as Done
+        </MenuItem>
         <MenuItem onClick={() => { setMenuAnchor(null); onEdit?.(); }}>
           <ListItemIcon><EditIcon fontSize="small" /></ListItemIcon>
           Edit Task

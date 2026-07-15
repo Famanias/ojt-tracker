@@ -20,6 +20,7 @@ import { formatTime, formatHours } from '@/lib/utils/format';
 import { Attendance, SiteSettings } from '@/types';
 import { format } from 'date-fns';
 import { useAuth } from '@/lib/context/AuthContext';
+import { emitClientEvent } from '@/lib/automation/client-emitter';
 
 interface Props {
   userId: string;
@@ -129,6 +130,14 @@ export default function ClockButton({ userId, todayRecord, onSuccess }: Props) {
         setError(insertError.message);
       } else {
         setSuccess('Successfully clocked in! Have a productive day.');
+        // Emit attendance.clocked_in event
+        emitClientEvent('attendance.clocked_in', {
+          userId,
+          clockIn: new Date().toISOString(),
+          date: today,
+          latitude: lat,
+          longitude: lng,
+        });
         onSuccess();
       }
     } else {
@@ -152,6 +161,15 @@ export default function ClockButton({ userId, todayRecord, onSuccess }: Props) {
         setError(updateError.message);
       } else {
         setSuccess(`Successfully clocked out! You worked ${formatHours(totalHours)} today.`);
+        // Emit attendance.clocked_out event
+        emitClientEvent('attendance.clocked_out', {
+          attendanceId: todayRecord!.id,
+          userId,
+          clockIn: todayRecord!.clock_in!,
+          clockOut: clockOut.toISOString(),
+          totalHours,
+          date: today,
+        });
         onSuccess();
       }
     }

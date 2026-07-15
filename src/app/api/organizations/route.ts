@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient as createSupabaseAdmin } from '@supabase/supabase-js';
 import { createOrganization, joinOrganization } from '@/lib/services/organization';
 import { validateInvitation, acceptInvitation } from '@/lib/services/invitation';
+import { emitEvent } from '@/lib/automation';
+import type { UserCreatedPayload, OrganizationCreatedPayload } from '@/lib/automation';
 
 function getAdminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -112,6 +114,21 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: err.message }, { status: 400 });
       }
 
+      // Emit domain events (fire-and-forget)
+      emitEvent<UserCreatedPayload>('user.created', userId, {
+        userId,
+        email: email.trim(),
+        fullName: fullName.trim(),
+        role: 'admin',
+        orgName: orgName.trim(),
+      }, undefined);
+      emitEvent<OrganizationCreatedPayload>('organization.created', userId, {
+        orgId: '', // org ID is internal to createOrganization
+        orgName: orgName.trim(),
+        createdBy: userId,
+        creatorName: fullName.trim(),
+      }, undefined);
+
       return NextResponse.json({ success: true, role: 'admin' });
     } else if (action === 'join') {
       if (!inviteCode?.trim()) {
@@ -143,6 +160,14 @@ export async function POST(request: NextRequest) {
         await supabaseAdmin.auth.admin.deleteUser(userId);
         return NextResponse.json({ error: err.message }, { status: 400 });
       }
+
+      // Emit user.created event
+      emitEvent<UserCreatedPayload>('user.created', userId, {
+        userId,
+        email: email.trim(),
+        fullName: fullName.trim(),
+        role: 'ojt',
+      }, undefined);
 
       return NextResponse.json({ success: true, role: 'ojt' });
     } else if (action === 'accept_invite') {
@@ -179,6 +204,14 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: err.message }, { status: 400 });
       }
 
+      // Emit user.created event
+      emitEvent<UserCreatedPayload>('user.created', userId, {
+        userId,
+        email: invite.email,
+        fullName: fullName.trim(),
+        role: invite.role,
+      }, invite.organization_id);
+
       return NextResponse.json({ success: true, role: invite.role });
     } else if (action === 'register_personal') {
       // 1. Create auth user with default role (ojt) and no organization
@@ -192,6 +225,14 @@ export async function POST(request: NextRequest) {
       if (authError) {
         return NextResponse.json({ error: authError.message }, { status: 400 });
       }
+
+      // Emit user.created event (personal mode — no org)
+      emitEvent<UserCreatedPayload>('user.created', authData.user.id, {
+        userId: authData.user.id,
+        email: email.trim(),
+        fullName: fullName.trim(),
+        role: 'ojt',
+      }, null);
 
       return NextResponse.json({ success: true, role: 'ojt' });
     } else {

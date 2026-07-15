@@ -23,6 +23,7 @@ import { KanbanTask, KanbanColumn, Profile, TaskAttachment } from '@/types';
 import { isPersonalBoard, canAssignUsers } from '@/lib/utils/kanbanScope';
 import { getFileType, formatFileSize, priorityColor } from '@/lib/utils/format';
 import { v4 as uuidv4 } from 'uuid';
+import { emitClientEvent } from '@/lib/automation/client-emitter';
 
 interface Props {
   open: boolean;
@@ -181,6 +182,35 @@ export default function TaskModal({
 
     if (assigneesToInsert.length > 0) {
       await supabase.from('task_assignees').insert(assigneesToInsert);
+    }
+
+    // Emit automation events (fire-and-forget)
+    if (!editingTask && taskId) {
+      // task.created event
+      emitClientEvent('task.created', {
+        taskId,
+        title: title.trim(),
+        description: description || undefined,
+        columnId,
+        priority,
+        creatorId: currentUser?.id,
+        creatorName: currentUser?.full_name,
+        assigneeIds: assignedOjtIds,
+      });
+
+      // task.assigned events for each assignee
+      assignedOjtIds.forEach((uid) => {
+        const ojt = ojts.find((o) => o.id === uid);
+        emitClientEvent('task.assigned', {
+          taskId,
+          title: title.trim(),
+          assigneeId: uid,
+          assigneeName: ojt?.full_name,
+          assigneeEmail: ojt?.email,
+          assignedBy: currentUser?.id,
+          assignedByName: currentUser?.full_name,
+        });
+      });
     }
 
     // Wait for any still-uploading files to finish

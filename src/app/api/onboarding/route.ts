@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient as createSupabaseAdmin } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/server';
 import { createOrganization, joinOrganization } from '@/lib/services/organization';
+import { emitEvent } from '@/lib/automation';
+import type { OrganizationCreatedPayload } from '@/lib/automation';
 
 function getAdminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -32,6 +34,14 @@ export async function POST(request: NextRequest) {
 
       // Create organization and link to existing user
       const org = await createOrganization(supabaseAdmin, orgName, user.id);
+
+      // Emit organization.created event
+      emitEvent<OrganizationCreatedPayload>('organization.created', user.id, {
+        orgId: org.id,
+        orgName: orgName.trim(),
+        createdBy: user.id,
+      }, org.id);
+
       return NextResponse.json({ success: true, role: 'admin', orgId: org.id });
     } else if (action === 'join') {
       if (!inviteCode?.trim()) {
