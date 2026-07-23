@@ -47,3 +47,6 @@ next-env.d.ts
 
 # workflows
 /workflows/*
+scripts/sync-n8n.mjs
+.agents/*
+docs/*

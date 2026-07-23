@@ -21,6 +21,7 @@ import {
   Notifications as NotificationsIcon,
   Business as OrgIcon,
   SmartToy as AutomationIcon,
+  Hub as IntegrationIcon,
 } from '@mui/icons-material';
 import { useRouter, usePathname } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
@@ -47,6 +48,7 @@ const navItems: NavItem[] = [
   { label: 'Reports', icon: <ReportIcon />, path: '/dashboard/reports', roles: ['supervisor', 'admin'] },
   { label: 'Users', icon: <PeopleIcon />, path: '/dashboard/admin/users', roles: ['admin'] },
   { label: 'Automation', icon: <AutomationIcon />, path: '/dashboard/admin/automation', roles: ['admin'] },
+  { label: 'Integrations', icon: <IntegrationIcon />, path: '/dashboard/admin/integrations', roles: ['admin'] },
   { label: 'Site Settings', icon: <SettingsIcon />, path: '/dashboard/admin/settings', roles: ['admin'] },
 ];
 

@@ -87,10 +87,16 @@ export async function POST(request: NextRequest) {
 
 export async function GET() {
   try {
+    const orgId = await getCallerOrgId();
+    if (!orgId) {
+      return NextResponse.json({ error: 'Unauthorized: admin access required.' }, { status: 403 });
+    }
+
     const supabaseAdmin = getAdminClient();
     const { data, error } = await supabaseAdmin
       .from('profiles')
       .select('*')
+      .eq('org_id', orgId)
       .order('created_at', { ascending: false });
 
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
@@ -102,15 +108,36 @@ export async function GET() {
 
 export async function DELETE(request: NextRequest) {
   try {
+    const orgId = await getCallerOrgId();
+    if (!orgId) {
+      return NextResponse.json({ error: 'Unauthorized: admin access required.' }, { status: 403 });
+    }
+
     const supabaseAdmin = getAdminClient();
     const { userId } = await request.json();
+
+    if (!userId) {
+      return NextResponse.json({ error: 'Missing userId parameter.' }, { status: 400 });
+    }
+
+    // Verify target user belongs to caller's organization before deletion
+    const { data: targetProfile } = await supabaseAdmin
+      .from('profiles')
+      .select('org_id')
+      .eq('id', userId)
+      .single();
+
+    if (!targetProfile || targetProfile.org_id !== orgId) {
+      return NextResponse.json({ error: 'Forbidden: Cannot delete user from another organization.' }, { status: 403 });
+    }
+
     const { error } = await supabaseAdmin.auth.admin.deleteUser(userId);
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
 
     // Emit user.deleted event
     emitEvent<UserDeletedPayload>('user.deleted', userId, {
       userId,
-    });
+    }, orgId);
 
     return NextResponse.json({ success: true });
   } catch {
