@@ -13,6 +13,7 @@ import { createClient } from '@/lib/supabase/server';
 import { emitEvent } from '@/lib/automation';
 import { isRegisteredEvent } from '@/lib/automation/registry';
 import { automationLogger } from '@/lib/automation/logger';
+import { checkRateLimit } from '@/lib/rate-limit';
 import type { AutomationEventName } from '@/lib/automation';
 
 export async function POST(request: NextRequest) {
@@ -25,7 +26,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // 2. Get caller's profile for org context
+    // 2. Rate limit: 100 requests / 60-second sliding window per user
+    const rateLimit = await checkRateLimit(`events:${user.id}`);
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { error: 'Too Many Requests' },
+        {
+          status: 429,
+          headers: { 'Retry-After': String(rateLimit.retryAfterSeconds ?? 60) },
+        }
+      );
+    }
+
+    // 3. Get caller's profile for org context
     const { data: profile } = await supabase
       .from('profiles')
       .select('org_id')
@@ -35,7 +48,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { event, payload } = body;
 
-    // 3. Validate event name
+    // 4. Validate event name
     if (!event || !isRegisteredEvent(event)) {
       return NextResponse.json(
         { error: `Invalid or unknown event: ${event}` },
@@ -43,7 +56,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 4. Emit the event (fire-and-forget — don't wait for n8n response)
+    // 5. Emit the event (fire-and-forget — don't wait for n8n response)
     emitEvent(
       event as AutomationEventName,
       user.id,

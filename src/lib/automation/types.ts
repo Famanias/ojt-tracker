@@ -14,6 +14,10 @@ export type AutomationEventName =
   // Attendance
   | 'attendance.clocked_in'
   | 'attendance.clocked_out'
+  | 'attendance.checked_in'
+  | 'attendance.checked_out'
+  | 'attendance.late'
+  | 'attendance.absent'
   | 'attendance.updated'
   // Kanban / Tasks
   | 'task.created'
@@ -21,9 +25,15 @@ export type AutomationEventName =
   | 'task.completed'
   | 'task.deleted'
   // Reports
+  | 'report.submitted'
+  | 'report.approved'
+  | 'report.rejected'
   | 'report.generated'
   // Organization
-  | 'organization.created';
+  | 'organization.created'
+  | 'organization.member_added'
+  | 'organization.member_removed'
+  | 'organization.updated';
 
 /**
  * Base envelope that wraps every automation event.
@@ -93,6 +103,21 @@ export interface AttendanceClockedOutPayload {
   date: string;
 }
 
+export interface AttendanceLatePayload {
+  attendanceId?: string;
+  studentId: string;
+  studentName: string;
+  email?: string;
+  time: string;
+}
+
+export interface AttendanceAbsentPayload {
+  studentId: string;
+  studentName: string;
+  email?: string;
+  date: string;
+}
+
 export interface AttendanceUpdatedPayload {
   attendanceId: string;
   userId: string;
@@ -132,7 +157,35 @@ export interface TaskCompletedPayload {
 export interface TaskDeletedPayload {
   taskId: string;
   title?: string;
-  deletedBy: string;
+  deletedBy?: string;
+  userEmail?: string;
+}
+
+export interface ReportSubmittedPayload {
+  reportId: string;
+  title: string;
+  studentName: string;
+  submittedAt: string;
+}
+
+export interface ReportApprovedPayload {
+  reportId: string;
+  title: string;
+  studentName?: string;
+  studentEmail?: string;
+  approvedBy: string;
+  approvedByName?: string;
+  feedback?: string;
+}
+
+export interface ReportRejectedPayload {
+  reportId: string;
+  title: string;
+  studentName?: string;
+  studentEmail?: string;
+  rejectedBy: string;
+  rejectedByName?: string;
+  reason?: string;
 }
 
 export interface ReportGeneratedPayload {
@@ -148,6 +201,32 @@ export interface OrganizationCreatedPayload {
   orgName: string;
   createdBy: string;
   creatorName?: string;
+}
+
+export interface OrgMemberAddedPayload {
+  orgId: string;
+  orgName: string;
+  memberId: string;
+  memberName: string;
+  memberEmail: string;
+  role: string;
+}
+
+export interface OrgMemberRemovedPayload {
+  orgId: string;
+  orgName: string;
+  memberId: string;
+  memberName?: string;
+  memberEmail: string;
+  removedBy?: string;
+  reason?: string;
+}
+
+export interface OrgUpdatedPayload {
+  orgId: string;
+  orgName: string;
+  updatedBy: string;
+  changes?: Record<string, unknown>;
 }
 
 // ---- Gateway Types ----

@@ -21,6 +21,7 @@ import {
   Notifications as NotificationsIcon,
   Business as OrgIcon,
   SmartToy as AutomationIcon,
+  Hub as IntegrationIcon,
 } from '@mui/icons-material';
 import { useRouter, usePathname } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
@@ -47,6 +48,7 @@ const navItems: NavItem[] = [
   { label: 'Reports', icon: <ReportIcon />, path: '/dashboard/reports', roles: ['supervisor', 'admin'] },
   { label: 'Users', icon: <PeopleIcon />, path: '/dashboard/admin/users', roles: ['admin'] },
   { label: 'Automation', icon: <AutomationIcon />, path: '/dashboard/admin/automation', roles: ['admin'] },
+  { label: 'Integrations', icon: <IntegrationIcon />, path: '/dashboard/admin/integrations', roles: ['admin'] },
   { label: 'Site Settings', icon: <SettingsIcon />, path: '/dashboard/admin/settings', roles: ['admin'] },
 ];
 
@@ -69,7 +71,7 @@ export default function Sidebar({ profile }: { profile: Profile }) {
       const res = await fetch('/api/notifications');
       if (res.ok) {
         const notifications = await res.json();
-        const unread = notifications.filter((n: any) => !n.is_read).length;
+        const unread = (notifications || []).filter((n: { is_read: boolean }) => !n.is_read).length;
         setUnreadCount(unread);
       }
     } catch (err) {
@@ -198,19 +200,22 @@ export default function Sidebar({ profile }: { profile: Profile }) {
         router.refresh();
         router.push(`/dashboard/${profile?.role}`);
       }
-    } catch (err: any) {
-      setPromotionError(err.message ?? 'An unexpected error occurred.');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setPromotionError(msg || 'An unexpected error occurred.');
       setPromotingAndLeaving(false);
     }
   };
 
+  const activeRole = profile?.system_role ?? profile?.role ?? '';
+
   const filteredItems = navItems.filter((item) =>
-    item.roles.includes(profile?.role ?? '')
+    item.roles.includes(activeRole)
   );
 
   const handleNav = (path: string) => {
     if (path === '/dashboard') {
-      router.push(`/dashboard/${profile?.role}`);
+      router.push(`/dashboard/${activeRole}`);
     } else {
       router.push(path);
     }

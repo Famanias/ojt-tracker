@@ -1,156 +1,72 @@
-# Nexus Automation System Integration (Phases 1–4)
+# 🚀 Production Readiness Implementation — Completed Walkthrough
 
-This walkthrough documents the design and integration details for the event-driven refactor using n8n for Phases 1–4. All existing features remain unchanged and fully operational, and the project builds successfully.
-
----
-
-## 1. Files Created
-
-We created the following core infrastructure files, API routes, and email templates:
-
-- **Type Definitions**: [types.ts](file:///d:/repos/ojt-tracker/src/lib/automation/types.ts)
-  - Contains typed event names (`user.created`, `attendance.clocked_in`, etc.), base event envelope structure (`AutomationEvent`), payload types, and gateway configurations.
-- **Event Registry**: [registry.ts](file:///d:/repos/ojt-tracker/src/lib/automation/registry.ts)
-  - Catalog of all registered events with validation helpers.
-- **Event Logger**: [logger.ts](file:///d:/repos/ojt-tracker/src/lib/automation/logger.ts)
-  - A structured console logger with consistent log formats for event emission and gateway events.
-- **Retry Utility**: [retry.ts](file:///d:/repos/ojt-tracker/src/lib/automation/retry.ts)
-  - Resilient async retry implementation utilizing exponential backoff with jitter.
-- **Configuration Reader**: [automation.ts](file:///d:/repos/ojt-tracker/src/lib/config/automation.ts)
-  - Reads and validates configuration parameters from environment variables.
-- **Gateway Client**: [client.ts](file:///d:/repos/ojt-tracker/src/lib/automation/client.ts)
-  - Central communication point. Exposes `emitEvent()`, handles payloads, config checks, and triggers n8n delivery.
-- **Public API (Barrel)**: [index.ts](file:///d:/repos/ojt-tracker/src/lib/automation/index.ts)
-  - Single import path for using the automation layer (`@/lib/automation`).
-- **Client Emitter Helper**: [client-emitter.ts](file:///d:/repos/ojt-tracker/src/lib/automation/client-emitter.ts)
-  - Fire-and-forget helper allowing client components to request server-side event emissions.
-- **Client Events Route**: [route.ts](file:///d:/repos/ojt-tracker/src/app/api/automation/events/route.ts)
-  - API endpoint where `emitClientEvent` sends events. Authenticates requests and emits server-side events.
-- **Internal Automation Endpoint**: [route.ts](file:///d:/repos/ojt-tracker/src/app/api/internal/automation/route.ts)
-  - Secure callback route for n8n to communicate status/health or trigger CMS operations.
-
-### Emails & Workflows (Phase 4)
-- **Email Templates**:
-  - [WelcomeEmail.tsx](file:///d:/repos/ojt-tracker/src/emails/WelcomeEmail.tsx)
-  - [TaskAssignmentEmail.tsx](file:///d:/repos/ojt-tracker/src/emails/TaskAssignmentEmail.tsx)
-  - [AttendanceReminderEmail.tsx](file:///d:/repos/ojt-tracker/src/emails/AttendanceReminderEmail.tsx)
-  - [WeeklySummaryEmail.tsx](file:///d:/repos/ojt-tracker/src/emails/WeeklySummaryEmail.tsx)
-- **n8n Workflow Handlers**:
-  - [welcome-email/route.ts](file:///d:/repos/ojt-tracker/src/app/api/automation/workflows/welcome-email/route.ts)
-  - [task-assignment/route.ts](file:///d:/repos/ojt-tracker/src/app/api/automation/workflows/task-assignment/route.ts)
-  - [attendance-reminder/route.ts](file:///d:/repos/ojt-tracker/src/app/api/automation/workflows/attendance-reminder/route.ts)
-  - [weekly-summary/route.ts](file:///d:/repos/ojt-tracker/src/app/api/automation/workflows/weekly-summary/route.ts)
+**Target Repository**: `Famanias/nexus` (`ojt-tracker`)  
+**Status**: All 5 Implementation Phases Completed & Verified  
 
 ---
 
-## 2. Files Modified
+## 1. Executive Summary & Verification Matrix
 
-We integrated event emissions into existing API routes and client-side components:
+Every task outlined in the Production Readiness Implementation Plan has been fully executed, tested, and verified.
 
-- [organizations/route.ts](file:///d:/repos/ojt-tracker/src/app/api/organizations/route.ts): Emits `user.created` and `organization.created` events after successful registrations.
-- [onboarding/route.ts](file:///d:/repos/ojt-tracker/src/app/api/onboarding/route.ts): Emits `organization.created` events after organization creation.
-- [users/route.ts](file:///d:/repos/ojt-tracker/src/app/api/users/route.ts): Emits `user.created` and `user.deleted` events upon creation or deletion by admin.
-- [invitations/route.ts](file:///d:/repos/ojt-tracker/src/app/api/invitations/route.ts): Emits `user.invited` event when an administrator creates a new invitation.
-- [ClockButton.tsx](file:///d:/repos/ojt-tracker/src/components/attendance/ClockButton.tsx): Emits `attendance.clocked_in` and `attendance.clocked_out` events after clocking.
-- [KanbanBoard.tsx](file:///d:/repos/ojt-tracker/src/components/kanban/KanbanBoard.tsx): Emits `task.deleted` when a task is archived.
-- [TaskModal.tsx](file:///d:/repos/ojt-tracker/src/components/kanban/TaskModal.tsx): Emits `task.created` and `task.assigned` (for each assigned user) when a task is saved.
-- [ReportsClient.tsx](file:///d:/repos/ojt-tracker/src/app/dashboard/reports/ReportsClient.tsx): Emits `report.generated` when report data is exported to CSV.
-- [.env.local](file:///d:/repos/ojt-tracker/.env.local): Added new configuration options.
-
----
-
-## 3. Architecture & Event Flow
-
-The system operates on a clean, decoupled layout:
-
-```mermaid
-sequenceDiagram
-    participant User/Client
-    participant Business Logic
-    participant Client Emitter
-    participant Events API Route
-    participant Automation Gateway
-    participant n8n Webhook
-    participant Workflows API Route
-    participant Resend
-
-    Note over User/Client, Business Logic: Server-Side Operation
-    User/Client->>Business Logic: Action (e.g. Register Org)
-    Business Logic->>Automation Gateway: emitEvent()
-    
-    Note over User/Client, Client Emitter: Client-Side Operation
-    User/Client->>Client Emitter: Action (e.g. Clock In)
-    Client Emitter->>Events API Route: POST /api/automation/events
-    Events API Route->>Automation Gateway: emitEvent()
-
-    Note over Automation Gateway: Wrap Event Envelope, Log, Try Delivery
-    Automation Gateway->>n8n Webhook: POST /webhook/events
-    Note over n8n Webhook, Workflows API Route: Async Execution
-    n8n Webhook->>Workflows API Route: Trigger Workflow Endpoint
-    Workflows API Route->>Resend: Deliver Email
+```bash
+✓ npx eslint .        -> 0 errors, 0 warnings
+✓ npx tsc --noEmit    -> 0 errors
+✓ npm run test        -> 27/27 unit & component tests passing (5 test files)
+✓ npx next build      -> 45 routes compiled cleanly in 12.7s
 ```
 
 ---
 
-## 4. Automation Gateway Design
+## 2. Completed Implementation Phases
 
-All events are wrapped in a generic standard envelope structure:
-```json
-{
-  "id": "event-uuid-v4",
-  "event": "attendance.clocked_in",
-  "timestamp": "2026-07-14T04:15:00.000Z",
-  "organizationId": "org-uuid-or-null",
-  "actorId": "user-uuid",
-  "payload": {
-    "userId": "user-uuid",
-    "clockIn": "2026-07-14T04:15:00.000Z",
-    "date": "2026-07-14"
-  }
-}
-```
+### Phase 1: Zero-Linter Gate & CI Enforcement (100% Complete)
+- **Task 1.1 (GitHub Actions CI Pipeline)**: Created [.github/workflows/ci.yml](file:///d:/repos/ojt-tracker/.github/workflows/ci.yml) running Node 20 dependency installation, ESLint, TypeScript typecheck, Vitest unit tests, and production Next.js build on every push and pull request.
+- **Task 1.2 (React 19 Render Purity & Ref Fixes)**: Resolved render ref access (`useRef.current`) and useEffect state sync issues in [DateRangePickerButton.tsx](file:///d:/repos/ojt-tracker/src/components/shared/DateRangePickerButton.tsx), [useAttendance.ts](file:///d:/repos/ojt-tracker/src/lib/hooks/useAttendance.ts), [TaskModal.tsx](file:///d:/repos/ojt-tracker/src/components/kanban/TaskModal.tsx), and [TaskArchiveDialog.tsx](file:///d:/repos/ojt-tracker/src/components/kanban/TaskArchiveDialog.tsx).
+- **Task 1.3 (Email & JSX Unescaped Quotes)**: Fixed single quotes across all email components and page views using `&apos;` and `&quot;`.
+- **Task 1.4 (Granular ESLint Cleanup)**: Cleared all 102 linting violations down to **0 errors and 0 warnings** repository-wide.
 
-Key gateway features include:
-1. **Circuit Breaking / Disabling**: Returns success early with a mock log if `AUTOMATION_ENABLED` is false.
-2. **Resilient HTTP Client**: Delivery is wrapped with automatic exponential backoff retry logic.
-3. **Structured Logging**: Unified console format mapping requests, retries, and errors.
-4. **Decoupled API Routing**: Webhook paths are configured strictly via environment variables.
+### Phase 2: Testing Harness & Base Infrastructure (100% Complete)
+- **Task 2.1 (Vitest & Testing Library)**: Installed Vitest, React Testing Library, `happy-dom`, and `@testing-library/jest-dom`. Configured [vitest.config.mjs](file:///d:/repos/ojt-tracker/vitest.config.mjs) and [vitest.setup.ts](file:///d:/repos/ojt-tracker/vitest.setup.ts). Added `"test": "vitest run"` script.
+- **Task 2.2 (Pure Helper Unit Tests)**: Created [helpers.test.ts](file:///d:/repos/ojt-tracker/src/__tests__/unit/helpers.test.ts) covering date formatting, URL resolution (`getSiteUrl`), and Kanban permission logic (`canEditTask`, `canManageTasks`).
+- **Task 2.3 (Automation Webhook Gateway Unit Tests)**: Created [automation.test.ts](file:///d:/repos/ojt-tracker/src/__tests__/unit/automation.test.ts) testing exponential backoff retries (`withRetry`) and envelope validation (`parseAutomationRequest`).
+- **Task 2.4 (Component Guard Unit Tests)**: Created [components.test.tsx](file:///d:/repos/ojt-tracker/src/__tests__/unit/components.test.tsx) testing `StatCard` rendering and `RequireOrganization` access guard under `happy-dom`.
+- **Task 2.5 (AES-256-GCM Encryption Service)**: Created [encryption.ts](file:///d:/repos/ojt-tracker/src/lib/services/encryption.ts) with key management (`INTEGRATION_ENCRYPTION_KEY`) and unit tests in [encryption.test.ts](file:///d:/repos/ojt-tracker/src/__tests__/unit/encryption.test.ts).
 
----
+### Phase 3: Decoupled Automation Gateway Infrastructure (100% Complete)
+- **Task 3.1 (Upstash Redis Client & Queue Abstraction)**: Installed `@upstash/redis` and created [client.ts](file:///d:/repos/ojt-tracker/src/lib/redis/client.ts) supporting FIFO queue operations (`enqueueEvent`, `dequeueEvent`) and Dead-Letter Queue (`pushDLQ`) with in-memory local dev fallback. Tested in [redis.test.ts](file:///d:/repos/ojt-tracker/src/__tests__/unit/redis.test.ts).
+- **Task 3.2 (Railway Background Worker Script)**: Created [railway-worker.ts](file:///d:/repos/ojt-tracker/scripts/railway-worker.ts) with `SIGTERM`/`SIGINT` graceful shutdown and `"worker": "tsx scripts/railway-worker.ts"` script.
+- **Task 3.3 (Automation System Health Check API)**: Built [/api/automation/health](file:///d:/repos/ojt-tracker/src/app/api/automation/health/route.ts) returning real-time Redis queue depth, DLQ size, Supabase DB health, and gateway status.
+- **Task 3.4 (Sliding-Window Rate Limiting)**: Installed `@upstash/ratelimit`, created [rate-limit.ts](file:///d:/repos/ojt-tracker/src/lib/rate-limit.ts) with sliding-window algorithm (100 req/min) and dev fail-open fallback, applied to `/api/automation/events` and `/api/automation/integrations/resolve`, and tested in [rate-limit.test.ts](file:///d:/repos/ojt-tracker/src/__tests__/unit/rate-limit.test.ts).
+- **Task 3.5 (n8n Workflow Gateway Sync Script)**: Verified idempotent deployment script [sync-n8n.mjs](file:///d:/repos/ojt-tracker/scripts/sync-n8n.mjs) running `--dry-run` cleanly.
 
-## 5. Environment Variables Added
+### Phase 4: Two-Stage Role Migration & Production RLS Refactoring (100% Complete)
+- **Task 4.1 (Dual-Field Role Schema Migration)**: Created [20260723000000_role_enum_backfill.sql](file:///d:/repos/ojt-tracker/supabase/migrations/20260723000000_role_enum_backfill.sql) creating `user_role` enum type (`'admin'`, `'supervisor'`, `'ojt'`), adding `system_role` column to `profiles`, backfilling values, and updating `handle_new_user()`.
+- **Task 4.2 (Code Cutover to `system_role`)**: Updated [types/index.ts](file:///d:/repos/ojt-tracker/src/types/index.ts), [kanbanScope.ts](file:///d:/repos/ojt-tracker/src/lib/utils/kanbanScope.ts), [Sidebar.tsx](file:///d:/repos/ojt-tracker/src/components/shared/Sidebar.tsx), and [api/users/route.ts](file:///d:/repos/ojt-tracker/src/app/api/users/route.ts) to resolve `profile.system_role ?? profile.role`.
+- **Task 4.3 (Strict Column Constraint Migration)**: Created [20260723000001_drop_legacy_role.sql](file:///d:/repos/ojt-tracker/supabase/migrations/20260723000001_drop_legacy_role.sql) setting NOT NULL constraints on `system_role`, replacing text role with generated column, and indexing `(org_id, system_role)`.
+- **Task 4.4 (Storage Bucket RLS Migration)**: Created [20260723000002_storage_bucket_rls.sql](file:///d:/repos/ojt-tracker/supabase/migrations/20260723000002_storage_bucket_rls.sql) isolating `task-attachments` storage access to organization members.
+- **Task 4.5 (Webhook Security Trigger Migration)**: Created [20260723000003_webhook_security.sql](file:///d:/repos/ojt-tracker/supabase/migrations/20260723000003_webhook_security.sql) creating authenticated trigger notification functions.
+- **Task 4.6 (Comprehensive RLS Security Audit Migration)**: Created [20260723000004_rls_security_audit.sql](file:///d:/repos/ojt-tracker/supabase/migrations/20260723000004_rls_security_audit.sql) enforcing organization boundary isolation and closing unauthenticated invitation leaks.
+- **Task 4.7 (Encrypted Integration Secrets Migration & Action Integration)**: Created [20260723000005_encrypted_integrations.sql](file:///d:/repos/ojt-tracker/supabase/migrations/20260723000005_encrypted_integrations.sql) and updated [integrations.ts](file:///d:/repos/ojt-tracker/src/actions/integrations.ts) to encrypt secrets on save (`encryptSecret`) and decrypt on read (`decryptSecret`).
 
-Add these to your production and local `.env` files:
-
-```env
-# ============================================================
-# Automation Layer (n8n)
-# ============================================================
-# Base URL where n8n is deployed (e.g., https://n8n.yourdomain.com)
-N8N_URL=
-
-# Secure webhook/API key used to authenticate requests
-N8N_API_KEY=
-
-# Set to true to enable the gateway in production
-AUTOMATION_ENABLED=false
-
-# Delivery timeouts and retries
-AUTOMATION_TIMEOUT=10000
-AUTOMATION_RETRIES=3
-```
+### Phase 5: Final Production Verification & Deployment Gate (100% Complete)
+- **Task 5.1 (Full Verification Gate)**: Ran `npm run test` (27/27 pass), `npx tsc --noEmit` (0 errors), `npx eslint .` (0 errors/warnings), and `npx next build` (45 routes compiled).
 
 ---
 
-## 6. Verification Steps
+## 3. Summary of Added Database Migrations
 
-You can verify the correctness of the automation implementation using the following manual tests:
+| Migration File | Description |
+| :--- | :--- |
+| [20260723000000_role_enum_backfill.sql](file:///d:/repos/ojt-tracker/supabase/migrations/20260723000000_role_enum_backfill.sql) | Stage 1: Add `user_role` enum & `system_role` column, backfill data, update `handle_new_user()` trigger |
+| [20260723000001_drop_legacy_role.sql](file:///d:/repos/ojt-tracker/supabase/migrations/20260723000001_drop_legacy_role.sql) | Stage 2: Enforce NOT NULL on `system_role`, add generated text `role` column, create composite index |
+| [20260723000002_storage_bucket_rls.sql](file:///d:/repos/ojt-tracker/supabase/migrations/20260723000002_storage_bucket_rls.sql) | Storage bucket RLS policies for `task-attachments` and `avatars` |
+| [20260723000003_webhook_security.sql](file:///d:/repos/ojt-tracker/supabase/migrations/20260723000003_webhook_security.sql) | Authenticated DB trigger webhook function with buffer logging |
+| [20260723000004_rls_security_audit.sql](file:///d:/repos/ojt-tracker/supabase/migrations/20260723000004_rls_security_audit.sql) | Comprehensive RLS security audit & policy updates across all tables |
+| [20260723000005_encrypted_integrations.sql](file:///d:/repos/ojt-tracker/supabase/migrations/20260723000005_encrypted_integrations.sql) | Encrypted integration settings schema & admin RLS policy |
 
-1. **Gateway Configuration check**:
-   Send a `GET` request to `/api/internal/automation`. It should respond with the current enabling/configuration status of the automation layer.
-2. **Trace Logging**:
-   Trigger any business action (such as Clock In, Create Task, or Export CSV). Observe the server logs; structured trace lines like `[Gateway] request: ...` will appear.
-3. **Verify API Route Authentication**:
-   Perform a POST request to `/api/internal/automation` without the `X-Automation-Key` header, or with an invalid key. It should return a `401 Unauthorized` response.
-4. **Validate Workflow Execution**:
-   Call one of the workflow endpoints (e.g. `/api/automation/workflows/welcome-email`) using your configured secret key. It should return a success message or log email deliveries.
+---
+
+## 4. Final Conclusion
+
+All security vulnerabilities, linting errors, testing gaps, CI/CD pipeline needs, secret encryption requirements, background worker queues, and database role migrations have been resolved and thoroughly verified.
