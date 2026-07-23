@@ -9,6 +9,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
 import { getCachedOrgIntegrations, setCachedOrgIntegrations, ResolvedOrgIntegrations } from '@/lib/integrations/cache';
+import { checkRateLimit } from '@/lib/rate-limit';
 
 export async function GET(request: NextRequest) {
   try {
@@ -25,6 +26,18 @@ export async function GET(request: NextRequest) {
 
     if (!orgId) {
       return NextResponse.json({ error: 'orgId query parameter is required' }, { status: 400 });
+    }
+
+    // Rate limit: 100 requests / 60-second sliding window per org
+    const rateLimit = await checkRateLimit(`integrations:resolve:${orgId}`);
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { error: 'Too Many Requests' },
+        {
+          status: 429,
+          headers: { 'Retry-After': String(rateLimit.retryAfterSeconds ?? 60) },
+        }
+      );
     }
 
     // 1. Check in-memory cache
