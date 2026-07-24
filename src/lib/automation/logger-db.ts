@@ -11,14 +11,24 @@ import type { AutomationEvent, AutomationResponse } from './types';
 import { getAutomationConfig } from '../config/automation';
 import { automationLogger } from './logger';
 
-// We use the service role key to bypass RLS when writing logs,
-// because business users shouldn't have direct write access to these tables.
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+function isValidUrl(url: string | undefined): boolean {
+  if (!url) return false;
+  try { new URL(url); return true; } catch { return false; }
+}
 
-const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
-  auth: { persistSession: false },
-});
+const PLACEHOLDER_URL = 'https://placeholder.supabase.co';
+const PLACEHOLDER_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.placeholder';
+
+function getSupabaseAdmin() {
+  const rawUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const rawKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const url = isValidUrl(rawUrl) ? rawUrl! : PLACEHOLDER_URL;
+  const key = rawKey && rawKey.length > 20 ? rawKey : PLACEHOLDER_KEY;
+
+  return createClient(url, key, {
+    auth: { persistSession: false },
+  });
+}
 
 export async function logAutomationResult(
   event: AutomationEvent<unknown>,
@@ -30,7 +40,7 @@ export async function logAutomationResult(
 
   // Decide what payloads to keep based on the config
   const isError = !response.success || !!error;
-  
+
   let requestPayloadToSave = null;
   let responsePayloadToSave = null;
 
@@ -40,7 +50,7 @@ export async function logAutomationResult(
   }
 
   // Fire and forget
-  supabaseAdmin
+  getSupabaseAdmin()
     .from('automation_logs')
     .insert({
       event_id: event.id,
@@ -69,7 +79,7 @@ export async function writeDeadLetter(
   const config = getAutomationConfig();
 
   // Dead letters always store the full payload so they can be replayed
-  supabaseAdmin
+  getSupabaseAdmin()
     .from('automation_dead_letters')
     .insert({
       event_id: event.id,
