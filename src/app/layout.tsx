@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist } from "next/font/google";
 import localFont from "next/font/local";
+import { headers } from "next/headers";
 import "./globals.css";
 import MuiThemeProvider from "@/components/shared/MuiThemeProvider";
 import { AppRouterCacheProvider } from "@mui/material-nextjs/v15-appRouter";
@@ -23,15 +24,18 @@ export const metadata: Metadata = {
   description: "One workspace for on-the-job training — attendance, tasks, and progress, connected.",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const headerList = await headers();
+  const nonce = headerList.get("x-nonce") ?? undefined;
+
   return (
     <html lang="en">
       <body className={`${geistSans.variable} ${blanka.variable} antialiased`}>
-        <AppRouterCacheProvider>
+        <AppRouterCacheProvider options={{ key: 'css', nonce }}>
           <MuiThemeProvider>
             {children}
           </MuiThemeProvider>

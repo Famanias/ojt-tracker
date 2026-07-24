@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
+import { createAdminClient } from '@/lib/supabase/server';
 
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
@@ -53,30 +54,47 @@ export async function GET(request: Request) {
     if (!authError) {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        // Fetch profile (must exist due to database trigger)
-        const { data: profile, error: profileError } = await supabase
+        // Fetch profile using admin client to bypass RLS token propagation timing during code exchange
+        const adminSupabase = await createAdminClient();
+        let { data: profile, error: profileError } = await adminSupabase
           .from('profiles')
           .select('*')
           .eq('id', user.id)
           .single();
 
         if (profileError || !profile) {
-          console.error('Unexpected missing profile on callback:', profileError);
-          // Sign out the user and return to login with error
-          await supabase.auth.signOut();
+          console.error('Missing or inaccessible profile on callback:', profileError);
           
-          const redirectErrorResponse = NextResponse.redirect(
-            `${origin}/login?error=${encodeURIComponent(
-              'Your user profile could not be created automatically. Please contact an administrator.'
-            )}`
-          );
-          
-          // Copy any cookies set during signOut
-          supabaseResponse.cookies.getAll().forEach((c) => {
-            redirectErrorResponse.cookies.set(c.name, c.value, c);
-          });
-          
-          return redirectErrorResponse;
+          // Auto-repair missing profile if user exists in auth.users
+          const { data: newProfile, error: insertError } = await adminSupabase
+            .from('profiles')
+            .insert({
+              id: user.id,
+              email: user.email ?? '',
+              full_name: user.user_metadata?.full_name || user.email?.split('@')[0] || 'User',
+              role: (user.user_metadata?.role as any) || 'ojt',
+            })
+            .select('*')
+            .single();
+
+          if (insertError || !newProfile) {
+            console.error('Failed to auto-create missing profile:', insertError);
+            await supabase.auth.signOut();
+            
+            const redirectErrorResponse = NextResponse.redirect(
+              `${origin}/login?error=${encodeURIComponent(
+                'Your user profile could not be created automatically. Please contact an administrator.'
+              )}`
+            );
+            
+            // Copy any cookies set during signOut
+            supabaseResponse.cookies.getAll().forEach((c) => {
+              redirectErrorResponse.cookies.set(c.name, c.value, c);
+            });
+            
+            return redirectErrorResponse;
+          }
+          profile = newProfile;
         }
 
         // Check if this is a recovery session

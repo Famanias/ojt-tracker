@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
+import { applySecurityHeaders } from './lib/security/headers';
 
 export async function proxy(request: NextRequest) {
   // Skip auth/session work for Next.js link-prefetch requests
@@ -19,7 +20,8 @@ export async function proxy(request: NextRequest) {
       if (!request.nextUrl.searchParams.has('next') && pathname === '/auth/reset-password') {
         callbackUrl.searchParams.set('next', '/auth/reset-password');
       }
-      return NextResponse.redirect(callbackUrl);
+      const redirectResp = NextResponse.redirect(callbackUrl);
+      return applySecurityHeaders(request, redirectResp).response;
     }
   }
 
@@ -63,12 +65,6 @@ export async function proxy(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // console.log({
-  //   pathname: request.nextUrl.pathname,
-  //   user: user?.id,
-  //   cookies: request.cookies.getAll().map(c => c.name),
-  // });
-
   const { pathname } = request.nextUrl;
   const role: string = (user?.user_metadata?.role as string) ?? 'ojt';
 
@@ -78,7 +74,7 @@ export async function proxy(request: NextRequest) {
     supabaseResponse.cookies.getAll().forEach((cookie) => {
       redirectResponse.cookies.set(cookie.name, cookie.value, cookie);
     });
-    return redirectResponse;
+    return applySecurityHeaders(request, redirectResponse).response;
   };
 
   const isInviteRoute = pathname.startsWith('/invite/');
@@ -93,16 +89,19 @@ export async function proxy(request: NextRequest) {
     '/forgot-password',
     '/auth/reset-password',
   ];
+
+  let finalResponse = supabaseResponse;
+
   if (publicRoutes.includes(pathname) || isInviteRoute) {
     if (user && !isInviteRoute && (pathname === '/login' || pathname === '/register' || pathname === '/')) {
       return redirectWithCookies(new URL(`/dashboard/${role}`, request.url));
     }
-    return supabaseResponse;
+    return applySecurityHeaders(request, finalResponse).response;
   }
 
   if (!user) {
     if (pathname.startsWith('/api/organizations') || pathname === '/auth/callback') {
-      return supabaseResponse;
+      return applySecurityHeaders(request, finalResponse).response;
     }
     return redirectWithCookies(new URL('/login', request.url));
   }
@@ -118,7 +117,7 @@ export async function proxy(request: NextRequest) {
     return redirectWithCookies(new URL(`/dashboard/${role}`, request.url));
   }
 
-  return supabaseResponse;
+  return applySecurityHeaders(request, finalResponse).response;
 }
 
 export const config = {
